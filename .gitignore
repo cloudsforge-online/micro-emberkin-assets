@@ -1,0 +1,13 @@
+# Nothing that could carry a credential. The Foundry key is a SPEND credential: it is read from
+# ../studio/.env.local at run time, held in one variable, and never written here.
+.env
+.env.*
+*.env
+
+# Review scaffolding. Contact sheets are built from the assets on demand and are not artefacts.
+review/
+
+# Python and editor debris.
+__pycache__/
+*.pyc
+.DS_Store
