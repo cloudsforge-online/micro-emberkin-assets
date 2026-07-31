@@ -49,7 +49,13 @@ import { reportSizing } from '../studio/src/sizing.ts'
 import { GENERATED_LICENCE } from '../studio/src/assets.ts'
 import type { FluxConfig } from '../studio/src/env.ts'
 
-import { plannedAssets, PALETTE, FAMILIES, type PlannedAsset } from './plan.ts'
+import {
+  plannedAssets,
+  colourWordForHex,
+  PALETTE,
+  FAMILIES,
+  type PlannedAsset,
+} from './plan.ts'
 
 const run = promisify(execFile)
 
@@ -147,11 +153,24 @@ const ICON_STYLE =
   'no 3D, no photo-realism, no weathering.'
 
 /** Keyart, the capsule, the hero, the OG card and the social banner. */
+/**
+ * The scene style, plus the guard on the one thing that broke a scene.
+ *
+ * `title/social` came back as a rounded-cornered banner floating in the middle of a WHITE page —
+ * the model drew a picture OF a social card rather than the card's artwork, which is a sensible
+ * reading of "social card" and produces a file whose edges are 97% white against a ceiling of 12%.
+ * Nothing in the style paragraph said the painting IS the file, so the last clause says it, in the
+ * same terms `FLAT_GROUND_CLAUSE` had to learn to use for the flat assets.
+ */
 const SCENE_STYLE =
   'Key art for a monster-collecting role-playing game: painted, cinematic, high contrast, ' +
   'saturated without being garish, with deep atmospheric perspective and volumetric light. It is ' +
   'a painting, not a photograph: no lens flare, no chromatic aberration, no depth-of-field bokeh ' +
-  'discs, no letterboxing, no user interface overlay, no watermark and no signature.'
+  'discs, no letterboxing, no user interface overlay, no watermark and no signature. The painting ' +
+  'FILLS THE WHOLE IMAGE, edge to edge and corner to corner, and is dark at its edges: it is not ' +
+  'a picture of a card, a banner, a poster, a screen, a mock-up or a device, it has no rounded ' +
+  'corners, no border, no margin, no mount, no drop shadow and no page behind it, and there is no ' +
+  'white, cream, grey or paper-coloured area anywhere in the frame.'
 
 /**
  * The ground, restated LAST as its own paragraph.
@@ -277,27 +296,6 @@ function accentClause(accent: string): string {
 }
 
 /**
- * The albedo clause for a creature. ART_BIBLE.md §1 pillar two, stated as a prohibition.
- *
- * "Evolutions deepen and enrich, never fully recolour — the family reads as a family" is the
- * consistency rule this whole set is judged on, and it is a rule about a HUE. So the clause names
- * the anchor, names it in words as well as in hex — a bare hex reads as noise to an image model —
- * and forbids the specific thing that breaks a family, which is a second unrelated hue arriving
- * on the later stages because "more powerful" reads to the model as "more colours".
- */
-const COLOUR_WORDS: Readonly<Record<string, string>> = {
-  '#ff6b4a': 'hot coral-orange',
-  '#4aa8ff': 'deep sea blue',
-  '#5fce7a': 'fresh leaf green',
-  '#9fd0ff': 'pale sky blue',
-  '#c9a06b': 'warm sandstone tan',
-  '#ffd23f': 'bright golden yellow',
-  '#8ee7ff': 'icy pale cyan',
-  '#9a7bd6': 'dusky violet',
-  '#ffe59e': 'warm pale gold',
-}
-
-/**
  * The albedo clause. ART_BIBLE.md §1 pillar two, stated as a prohibition — twice.
  *
  * The version this replaced said the anchor "covers most of its body", and the first live
@@ -308,29 +306,54 @@ const COLOUR_WORDS: Readonly<Record<string, string>> = {
  * thumbnail size — which is where a player actually reads it, and which is the entire reason the
  * pillar exists.
  *
- * So the clause now names the SURFACE — fur, scales, hide, plating — rather than "the albedo",
+ * So the clause names the SURFACE — fur, scales, hide, plating — rather than "the albedo",
  * forbids the specific substitution that happened (black, charcoal, grey, white bodies with the
  * anchor demoted to a glow), and states the test a reader applies: what colour is this creature.
+ *
+ * ═══ The nine strings this file used to keep for itself, and the call they cost. ═══
+ *
+ * There were TWO copies of the anchors' colour words: `plan.ts`'s, which writes the subject line,
+ * and a second one here, which writes this clause. Correcting verdant in `plan.ts` alone left the
+ * four repetitions below still saying "fresh leaf green", and since this clause is the loudest
+ * statement of colour in the prompt — capitals, hex, and a naming test — the correction lost.
+ * Seedling was regenerated against the "fixed" prompt and came back at hue 67, unchanged from the
+ * 74 it had before. One paid call to discover a second copy of a table. There is now one table,
+ * in `plan.ts`, and this file looks its entry up by hex.
+ *
+ * ═══ The motif override, which is the other half of the umbra defect. ═══
+ *
+ * Shadepup's silhouette motif, read verbatim out of `visuals.json`, is "shadow wisps, void-black
+ * core", and the picture that came back was 0.13% ink: a black creature on a black ground, which
+ * is a blank. Nocthound and Umbrawulf are the same motif and came back the same way. The motif is
+ * upstream content and correct — it describes the SHAPE — but nothing in the prompt said so, and
+ * "void-black" beside an albedo is read as an albedo. So the clause now says which of the two the
+ * motif is. This matters beyond umbra: ember has "smouldering vents", frost has "void" language
+ * further down the dex, and every one of them is a shape.
  */
 function albedoClause(accent: string, secondary: string | null): string {
-  const word = COLOUR_WORDS[accent] ?? 'its anchor colour'
+  const { name: word, qualifier } = colourWordForHex(accent)
+  const shade = qualifier ? ` — ${qualifier} — ` : ', '
   const second = secondary
-    ? `Its one permitted second colour is ${COLOUR_WORDS[secondary] ?? 'its secondary anchor'} ` +
+    ? `Its one permitted second colour is ${colourWordForHex(secondary).name} ` +
       `${secondary}, blended into the primary along the silhouette and concentrated at the ` +
       'extremities. '
     : 'It has no second colour. '
   return (
     `THE CREATURE ITSELF IS ${word.toUpperCase()}. Its fur, scales, hide, skin or plating — the ` +
-    `actual surface of the animal — is ${word}, hex ${accent}, over the whole of its body, in ` +
-    'the light and in the shadow, and the deeper and lighter values on it are deeper and lighter ' +
-    'values OF THAT SAME COLOUR. Asked what colour this creature is, a viewer says ' +
+    `actual surface of the animal — is ${word}${shade}hex ${accent}, over the whole of its ` +
+    'body, in the light and in the shadow, and the deeper and lighter values on it are deeper ' +
+    'and lighter values OF THAT SAME COLOUR. Asked what colour this creature is, a viewer says ' +
     `"${word}" immediately and without hesitating. ${second}` +
     'It is NOT a black creature, NOT a charcoal one, NOT dark grey, NOT white and NOT ' +
     `neutral-coloured with ${word} markings, glowing seams or lit accents on it — the colour is ` +
-    'the animal, not a decoration applied to it. Apart from that, the only other values anywhere ' +
-    'on it are the near-neutral darks of its own shadow, the warm off-white of its rim light, and ' +
-    'the whites of its eyes and teeth. No third hue, no rainbow, no unrelated accent, no coloured ' +
-    'jewellery, and no armour in a metal that is not already its own colour.'
+    'the animal, not a decoration applied to it. Where the silhouette motif above names shadow, ' +
+    'void, dark, black, smoke, ash or night, that names the SHAPE and the theme and never the ' +
+    `colour: those elements are drawn in ${word} too, in deeper and lighter values of it, and ` +
+    'the creature is a brightly coloured animal with a dark THEME, not a dark animal. Apart from ' +
+    'that, the only other values anywhere on it are the near-neutral darks of its own shadow, ' +
+    'the warm off-white of its rim light, and the whites of its eyes and teeth. No third hue, no ' +
+    'rainbow, no unrelated accent, no coloured jewellery, and no armour in a metal that is not ' +
+    'already its own colour.'
   )
 }
 

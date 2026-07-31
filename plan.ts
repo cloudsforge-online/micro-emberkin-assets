@@ -140,36 +140,88 @@ export const PALETTE = derivePalette()
 /**
  * Plain-language names for the nine anchors. Used in prompts; a hex alone reads as noise.
  *
- * Three of these were rewritten after measuring the first full pass, and the measurements are the
+ * Each anchor is TWO strings, not one, and the split is the correction that made the rewrite
+ * below actually land. A `name` is the short noun phrase a viewer would say out loud, and it is
+ * the string the albedo clause shouts in capitals and quotes back as the naming test — so it has
+ * to survive `"${name}"` and `${name.toUpperCase()}` without reading as gibberish. A `qualifier`
+ * is the sentence that pins the hue's DIRECTION round the wheel, and it is stated once, beside
+ * the hex, where a long parenthetical does no harm.
+ *
+ * The first attempt at this fix put the whole corrected phrase in `name`, which meant it appeared
+ * only in the subject's opening noun and the four repetitions in the albedo clause still said
+ * "fresh leaf green". Seedling was regenerated against that and came back at hue 67 — no better
+ * than the 74 it had before. The word was never actually tested; the clause that outvoted it was.
+ *
+ * Three anchors were rewritten after measuring the first full pass, and the measurements are the
  * reason rather than taste. `verify.py` reports each portrait's rendered hue against its anchor:
  *
- *   * **verdant** was "fresh leaf green", and all seven verdant Kin came back 52 to 104 degrees
+ *   * **verdant** was "fresh leaf green", and all seven verdant Kin came back 54 to 102 degrees
  *     YELLOW of #5fce7a — an olive leaf green, drawn consistently and drawn wrong. A leaf is
  *     yellow-green in almost every photograph ever captioned "leaf"; #5fce7a is not, it is a cool
  *     spring green at hue 135. The word was doing the opposite of its job.
  *   * **umbra** was "dusky violet", and four of the five umbra Kin came back essentially BLACK,
  *     with Shadepup registering ten chromatic pixels in a 200-square sample — a creature invisible
  *     against its own ground. "Dusky" plus a shadow-themed silhouette motif reads as "unlit".
+ *     The corrected word was proved on `types/umbra` before a single portrait was paid for: the
+ *     same icon that had come back near-black came back a vivid violet crescent.
  *   * **frost** and **gale** are both pale blues within 8 dE of each other under deuteranopia
  *     (see `verify.py --cvd`), so each names what it is NOT, to stop the two collapsing.
  *
  * The rule these three share: name the HUE and its direction round the wheel, never an object.
  * An object drags the model to the object's photographic average, which is exactly what happened.
  */
-const COLOUR_WORDS: Readonly<Record<string, string>> = {
-  ember: 'hot coral-orange',
-  tide: 'deep sea blue',
-  verdant:
-    'bright cool spring green — a green that leans towards mint and blue, never towards olive, ' +
-    'khaki, yellow-green or brown',
-  gale: 'pale desaturated sky blue, greyer and softer than a cyan',
-  stone: 'warm sandstone tan',
-  spark: 'bright golden yellow',
-  frost: 'bright icy pale cyan, clearly more green-blue than a plain sky blue',
-  umbra:
-    'vivid dusky violet-purple, clearly and obviously PURPLE at a glance and never black, ' +
-    'charcoal or unlit grey',
-  lumen: 'warm pale gold',
+export interface ColourWord {
+  /** The short noun phrase. Shouted, quoted and repeated; must read naturally in all three. */
+  readonly name: string
+  /** The direction round the wheel, stated once beside the hex. Empty where the name suffices. */
+  readonly qualifier: string
+}
+
+const COLOUR_WORDS: Readonly<Record<string, ColourWord>> = {
+  ember: { name: 'hot coral-orange', qualifier: '' },
+  tide: { name: 'deep sea blue', qualifier: '' },
+  verdant: {
+    name: 'vivid mint-emerald green',
+    qualifier:
+      'a COOL green that leans towards mint, emerald and blue — never towards olive, khaki, ' +
+      'moss, lime, sage, yellow-green, gold or brown, and never the yellowish green of a ' +
+      'photographed leaf',
+  },
+  gale: { name: 'pale desaturated sky blue', qualifier: 'greyer and softer than a cyan' },
+  stone: { name: 'warm sandstone tan', qualifier: '' },
+  spark: { name: 'bright golden yellow', qualifier: '' },
+  frost: {
+    name: 'bright icy pale cyan',
+    qualifier: 'clearly more green-blue than a plain sky blue',
+  },
+  umbra: {
+    name: 'vivid violet-purple',
+    qualifier:
+      'clearly and obviously PURPLE at a glance, a LIT lavender-violet — never black, never ' +
+      'charcoal, never dark grey, never unlit, and never the colour of a shadow',
+  },
+  lumen: { name: 'warm pale gold', qualifier: '' },
+}
+
+/** The anchor's name and qualifier joined, for use in running prose. */
+function colourPhrase(element: string): string {
+  const word = COLOUR_WORDS[element]
+  if (!word) throw new Error(`no colour word for ${element}`)
+  return word.qualifier ? `${word.name} — ${word.qualifier} —` : word.name
+}
+
+/**
+ * The same table, keyed by hex.
+ *
+ * `generate.ts` writes the albedo clause and knows an asset only by its accent hex, and it used to
+ * carry its own second copy of these nine strings. That copy is what silently outvoted the first
+ * verdant rewrite. One table, two lookups, and the divergence cannot recur.
+ */
+export function colourWordForHex(hex: string): ColourWord {
+  for (const [element, word] of Object.entries(COLOUR_WORDS)) {
+    if (PALETTE[element] === hex) return word
+  }
+  return { name: 'its anchor colour', qualifier: '' }
 }
 
 /* ------------------------------------------------------------------ the families */
@@ -352,9 +404,9 @@ function speciesAssets(): PlannedAsset[] {
     // gold, its SECONDARY, with the primary nowhere. A dual-type Kin whose secondary has taken
     // over is mis-typed at a glance, which is the one thing the type palette exists to prevent.
     const dual = secondary
-      ? `It is a dual-type Kin: ${COLOUR_WORDS[primary]} ${PALETTE[primary]} is the PRIMARY and ` +
+      ? `It is a dual-type Kin: ${colourPhrase(primary)} ${PALETTE[primary]} is the PRIMARY and ` +
         'covers at least three quarters of the body, and it is the colour a viewer names when ' +
-        `asked what colour this creature is. ${COLOUR_WORDS[secondary]} ${PALETTE[secondary]} is ` +
+        `asked what colour this creature is. ${colourPhrase(secondary)} ${PALETTE[secondary]} is ` +
         'the SECONDARY and blends into the primary along the silhouette, confined to the ' +
         'extremities and to no more than a quarter of the body. The secondary never takes over ' +
         'and never becomes the creature\'s main colour. Two anchors, blended, and no third hue. '
@@ -393,7 +445,7 @@ function speciesAssets(): PlannedAsset[] {
         // clause several paragraphs below the subject loses to the subject's own noun: a moth is
         // grey, so the model drew a grey moth. Naming the colour as part of what the thing IS
         // costs four words and beats arguing with it afterwards.
-        `A single creature from a monster-collecting role-playing game: a ${COLOUR_WORDS[primary]} ` +
+        `A single creature from a monster-collecting role-playing game: a ${colourPhrase(primary)} ` +
         `${species.category.toLowerCase()} called ${species.name}. Body plan: a ${visual.archetype}. ` +
         `Its one silhouette motif, which ` +
         `must dominate the shape, is: ${visual.silhouette}. ${dual}${emission}` +
