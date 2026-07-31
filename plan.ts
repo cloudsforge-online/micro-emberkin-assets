@@ -343,8 +343,8 @@ const STAGE_DIRECTION: Readonly<Record<string, string>> = {
   base: 'This is the BASE stage of the line: small, compact, rounded, young — large head relative to the body, short limbs, soft edges. Its albedo is the family colour at its lightest and most open.',
   mid: 'This is the MIDDLE stage of the line: the same animal grown taller and leaner, the motif sharpened and repeated more times along the body. Its albedo is the SAME family colour, DEEPENED — richer and more saturated than the base stage, never a different hue.',
   final:
-    'This is the FINAL stage of the line: the largest and most imposing form, the motif at its fullest expression, heavier plating or longer streamers, a clear reading of power at rest. Its albedo is the SAME family colour, deepened FURTHER and enriched with darker shadow ramps and brighter rim light — never recoloured, never a new hue.',
-  apex: 'This is an APEX legendary: singular, architectural, larger than anything else in the world, with a designed sense of ceremony. Its albedo is still its type anchor, at its deepest and most jewel-like.',
+    'This is the FINAL stage of the line: the largest and most imposing form, the motif at its fullest expression, heavier plating or longer streamers, a clear reading of power at rest. Its albedo is the SAME family colour, deepened FURTHER and enriched with darker shadow ramps and brighter rim light — never recoloured, never a new hue. Deepened means RICHER, not darker: the body stays clearly and obviously lighter than the near-black background, the family colour still covers most of the animal at thumbnail size, and the creature is never a black silhouette with coloured parts hung on it.',
+  apex: 'This is an APEX legendary: singular, architectural, larger than anything else in the world, with a designed sense of ceremony. Its albedo is still its type anchor, at its deepest and most jewel-like. Deepest means RICHEST, not darkest: the body stays clearly and obviously lighter than the near-black background and the type colour still covers most of the animal at thumbnail size.',
 }
 
 /**
