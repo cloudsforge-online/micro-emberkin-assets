@@ -285,10 +285,22 @@ function letteringClause(name: string): string {
  * surface's, which is the entire job the accent does. The bone exemption is design-system.md §5's
  * own ground line in `--cf-fg-mute`, so forbidding a second colour outright would forbid the
  * family's construction.
+ *
+ * The clause named the hex and nothing else, and on eight of the nine type icons that was enough.
+ * On the ninth it was not: `types/verdant` is a leaf, and it came back at hue 87 against an anchor
+ * at 135 — 47 degrees of yellow, from a prompt that stated #5fce7a twice. The same lesson the
+ * albedo clause is built on ("a bare hex reads as noise to an image model") applies here, so the
+ * anchor's plain-language name is now stated beside it. `verify.py` measures both.
  */
 function accentClause(accent: string): string {
+  const { name, qualifier } = colourWordForHex(accent)
+  const named =
+    name === 'its anchor colour'
+      ? ''
+      : `That colour is ${name}${qualifier ? ` — ${qualifier}` : ''}. `
   return (
     `Every drawn element is filled or stroked in ${accent} — that exact colour, at full strength. ` +
+    named +
     'The only permitted exception is a ground line, which may instead be a muted bone #b7ae9b. ' +
     `Nothing is drawn in plain white, plain grey or the ground colour, and ${accent} is the ` +
     'dominant colour of the artwork rather than a small detail on it.'
@@ -346,10 +358,13 @@ function albedoClause(accent: string, secondary: string | null): string {
     `"${word}" immediately and without hesitating. ${second}` +
     'It is NOT a black creature, NOT a charcoal one, NOT dark grey, NOT white and NOT ' +
     `neutral-coloured with ${word} markings, glowing seams or lit accents on it — the colour is ` +
-    'the animal, not a decoration applied to it. Where the silhouette motif above names shadow, ' +
-    'void, dark, black, smoke, ash or night, that names the SHAPE and the theme and never the ' +
-    `colour: those elements are drawn in ${word} too, in deeper and lighter values of it, and ` +
-    'the creature is a brightly coloured animal with a dark THEME, not a dark animal. Apart from ' +
+    'the animal, not a decoration applied to it. THE SILHOUETTE MOTIF ABOVE NAMES SHAPES AND ' +
+    'MATERIALS, NEVER COLOURS. Whatever material it names — bark, wood, leaf, moss, stone, ' +
+    'mineral, metal, bone, feather, ice, frost, water, cloud, smoke, ash, shadow or void — is ' +
+    `carved out of the creature itself and is therefore drawn in ${word}, in deeper and lighter ` +
+    `values of ${word}, and never in that material's own real-world colour: no brown bark, no ` +
+    'grey stone, no white ice, no black shadow. It is a brightly coloured animal that HAS a ' +
+    'wooden or icy or shadowy shape, not an animal made of wood or ice or shadow. Apart from ' +
     'that, the only other values anywhere on it are the near-neutral darks of its own shadow, ' +
     'the warm off-white of its rim light, and the whites of its eyes and teeth. No third hue, no ' +
     'rainbow, no unrelated accent, no coloured jewellery, and no armour in a metal that is not ' +

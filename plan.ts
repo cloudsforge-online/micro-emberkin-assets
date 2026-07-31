@@ -181,11 +181,10 @@ const COLOUR_WORDS: Readonly<Record<string, ColourWord>> = {
   ember: { name: 'hot coral-orange', qualifier: '' },
   tide: { name: 'deep sea blue', qualifier: '' },
   verdant: {
-    name: 'vivid mint-emerald green',
+    name: 'bright jade green',
     qualifier:
-      'a COOL green that leans towards mint, emerald and blue — never towards olive, khaki, ' +
-      'moss, lime, sage, yellow-green, gold or brown, and never the yellowish green of a ' +
-      'photographed leaf',
+      'a COOL blue-leaning green sitting halfway between emerald and teal — the green of a jade ' +
+      'stone or of a green traffic light, never olive, khaki, sage, moss or yellow-green',
   },
   gale: { name: 'pale desaturated sky blue', qualifier: 'greyer and softer than a cyan' },
   stone: { name: 'warm sandstone tan', qualifier: '' },
