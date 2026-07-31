@@ -1,6 +1,6 @@
 {
   "$comment": "The generation plan, derived by plan.ts from kindred-upstream/content and written by `generate.ts --plan`. Reviewable before a single generation is paid for. Do not edit by hand: it is regenerated from the content, which is the point of it.",
-  "generatedAt": "2026-07-31T20:15:42.654Z",
+  "generatedAt": "2026-07-31T20:23:55.847Z",
   "palette": {
     "ember": "#ff6b4a",
     "tide": "#4aa8ff",
