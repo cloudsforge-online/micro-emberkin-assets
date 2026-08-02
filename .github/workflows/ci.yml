@@ -4,6 +4,13 @@ name: CI
 # guards the failure that cannot be undone — a committed secret is compromised the moment it
 # lands, whatever kind of repository it lands in. Same shape as micro-brand, which is the
 # repository this one is modelled on.
+#
+# AND THE VERIFIER — added late, and the lateness had a cost. This repository ran only hygiene
+# while micro-brand's CI comment already warned that a verifier nobody runs lets the record go
+# stale. It did exactly that here: three favicons sat on disk with no manifest entry while the
+# README claimed every file is recorded, and the 32px one carried corner strays the flat-asset
+# rule refuses — invisible for the whole life of the repo, found only when the Aetherholm assets
+# run audited its precedents. verify.py on every push is what makes the claim self-enforcing.
 
 on:
   push:
@@ -18,3 +25,16 @@ jobs:
       require-dockerignore: false
     permissions:
       contents: read
+
+  verify:
+    name: verify.py
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow
+      - run: python3 verify.py
