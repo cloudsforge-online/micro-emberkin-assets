@@ -8,15 +8,15 @@
   "_noDependencies": [
     "This package has no dependencies and no node_modules of its own, on purpose.",
     "",
-    "generate.ts imports four modules from ../studio/src — backend, specs, sizing and the licence",
-    "constant from assets — and plan.ts reads four JSON files from ../kindred-upstream/content.",
+    "generate.ts imports four modules from ../studio/src \u2014 backend, specs, sizing and the licence",
+    "constant from assets \u2014 and plan.ts reads four JSON files from ../kindred-upstream/content.",
     "All of them are dependency-free, so nothing has to be installed to read them; what the studio",
     "modules encode is every verified fact about the FLUX 2 Pro endpoint, and what the content",
     "encodes is the art specification for all fifty Kin. A second copy of either in this",
     "repository would be a second place for it to rot.",
     "",
     "The consequence is that this repository is NOT self-contained: a RUN needs the sibling",
-    "checkouts beside it. The ARTEFACTS are self-contained — the PNGs, MANIFEST.json and PLAN.json",
+    "checkouts beside it. The ARTEFACTS are self-contained \u2014 the PNGs, MANIFEST.json and PLAN.json",
     "carry everything needed to audit what was made and from what. That is the same trade",
     "micro-brand (the sibling `brand/`) makes.",
     "",
@@ -32,6 +32,9 @@
     "normalise": "python3 normalise_ground.py",
     "verify": "python3 verify.py",
     "cvd": "python3 verify.py --cvd",
-    "sheets": "python3 sheet.py"
+    "sheets": "python3 sheet.py",
+    "probe": "cd ../studio && node --import tsx ../emberkin-assets/probe.ts",
+    "test": "cd ../studio && node --import tsx --test ../emberkin-assets/parity.test.ts",
+    "compare": "python3 compare.py"
   }
 }

@@ -26,16 +26,29 @@ Sheets land in review/, which is gitignored: they are scaffolding for a judgemen
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+import providers
+
 HERE = Path(__file__).resolve().parent
-MANIFEST = HERE / "MANIFEST.json"
 PLAN = HERE / "PLAN.json"
+# Sheets land in review/<provider-id>/ so two models' sets cannot overwrite each other's
+# scaffolding. Set once by main(); every builder below reads it rather than taking another
+# parameter, because the two game repositories' builders have different signatures and threading a
+# provider through both would be a bigger change than the feature is worth.
+PROVIDER = providers.reference()
 REVIEW = HERE / "review"
+
+
+def review_dir() -> Path:
+    out = REVIEW / PROVIDER.id
+    out.mkdir(parents=True, exist_ok=True)
+    return out
 
 # Tile width per set, and how many across. Wide sets get fewer columns so lettering stays legible
 # at review size — a wordmark shrunk to a thumbnail cannot be checked for a mangled letter, which
@@ -82,7 +95,7 @@ def build_set(name: str, assets: list[dict]) -> Path | None:
     chosen.sort(key=lambda a: a["slug"])
 
     tile_width, columns = LAYOUT.get(name, (260, 6))
-    with Image.open(HERE / chosen[0]["path"]) as first:
+    with Image.open(PROVIDER.root / chosen[0]["path"]) as first:
         tile_height = round(tile_width * first.size[1] / first.size[0])
 
     rows = (len(chosen) + columns - 1) // columns
@@ -104,7 +117,7 @@ def build_set(name: str, assets: list[dict]) -> Path | None:
         tile(
             sheet,
             draw,
-            HERE / asset["path"],
+            PROVIDER.root / asset["path"],
             x,
             y,
             tile_width,
@@ -112,8 +125,7 @@ def build_set(name: str, assets: list[dict]) -> Path | None:
             typeface,
         )
 
-    REVIEW.mkdir(exist_ok=True)
-    out = REVIEW / f"sheet-{name}.png"
+    out = review_dir() / f"sheet-{name}.png"
     sheet.save(out, format="PNG")
     return out
 
@@ -157,7 +169,7 @@ def build_families(assets: list[dict], plan: dict) -> Path | None:
             tile(
                 sheet,
                 draw,
-                HERE / asset["path"],
+                PROVIDER.root / asset["path"],
                 x,
                 y,
                 tile_width,
@@ -165,14 +177,21 @@ def build_families(assets: list[dict], plan: dict) -> Path | None:
                 typeface,
             )
 
-    REVIEW.mkdir(exist_ok=True)
-    out = REVIEW / "families.png"
+    out = review_dir() / "families.png"
     sheet.save(out, format="PNG")
     return out
 
 
 def main(argv: list[str]) -> int:
-    assets = json.loads(MANIFEST.read_text())["assets"]
+    global PROVIDER
+    parser = argparse.ArgumentParser(description="Contact sheets, one set at a time.")
+    providers.add_argument(parser)
+    parser.add_argument("names", nargs="*")
+    args = parser.parse_args(argv)
+    chosen = providers.selected(args)
+    PROVIDER = chosen[0] if chosen else providers.reference()
+    argv = args.names
+    assets = json.loads(PROVIDER.manifest.read_text())["assets"]
     plan = json.loads(PLAN.read_text())
     wanted = argv or ["species", "types", "biomes", "title", "ui", "families"]
     for name in wanted:

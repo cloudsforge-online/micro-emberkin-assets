@@ -42,6 +42,7 @@ vision. See the note on it below: it is evidence, not a gate.
 
 from __future__ import annotations
 
+import argparse
 import colorsys
 import hashlib
 import json
@@ -50,8 +51,9 @@ from pathlib import Path
 
 from PIL import Image
 
+import providers
+
 HERE = Path(__file__).resolve().parent
-MANIFEST = HERE / "MANIFEST.json"
 PLAN = HERE / "PLAN.json"
 
 GROUND = "#12100f"
@@ -313,13 +315,81 @@ def read_image(image: Image.Image, accent: str, ground: tuple[int, int, int]) ->
     return Reading(len(matched) / total, rendered, ink / total, span)
 
 
-def main(argv: list[str]) -> int:
-    plan = json.loads(PLAN.read_text())
-    if "--cvd" in argv:
-        return cvd_report(plan)
+def check_parity(documents: dict[str, dict]) -> list[str]:
+    """Every asset present in two or more sets must carry the same prompt in both.
 
-    document = json.loads(MANIFEST.read_text())
-    wanted = {a for a in argv if not a.startswith("--")}
+    THE CHECK THE WHOLE COMPARISON RESTS ON. Two models asked different questions produce an
+    incomparable answer, and the failure is invisible in the images — it looks like one model being
+    worse at prompt adherence, which is exactly the conclusion this exercise is supposed to reach
+    honestly or not at all.
+
+    It compares the MANIFESTS, not PLAN.json and not the prompt-building code, because the manifest
+    is the only artefact that records what was actually SENT. PLAN.json is regenerated from the
+    current clauses on every run and drifts away from the run it describes the moment a clause is
+    edited — measured here at the time of writing, most of this set's entries already carry a
+    manifest prompt its own PLAN.json no longer derives. Checking against the code would be
+    checking against a thing that has already moved.
+
+    Vacuously true while there is one set, and deliberately shipped before there is a second: it is
+    binding the first minute a candidate lands, which is the minute it matters.
+    """
+    if len(documents) < 2:
+        return []
+
+    by_key: dict[str, dict[str, str]] = {}
+    for provider_id, document in documents.items():
+        for asset in document["assets"]:
+            # providers.key_of, not a hand-built string: the three asset repositories identify an
+            # asset differently and that function is the only place the difference lives.
+            by_key.setdefault(providers.key_of(asset), {})[provider_id] = asset["prompt"]
+
+    reference_id = providers.reference().id
+    problems: list[str] = []
+    for key, prompts in sorted(by_key.items()):
+        if len(prompts) < 2:
+            if reference_id in documents and reference_id not in prompts:
+                problems.append(
+                    f"{key}: present in {', '.join(sorted(prompts))} but not in the reference set "
+                    f"{reference_id} — a candidate replays the reference's recorded prompts, so it "
+                    "cannot hold an asset the reference has never generated"
+                )
+            continue
+        distinct: dict[str, list[str]] = {}
+        for provider_id, prompt in prompts.items():
+            distinct.setdefault(hashlib.sha256(prompt.encode()).hexdigest()[:12], []).append(provider_id)
+        if len(distinct) > 1:
+            groups = "; ".join(
+                f'{digest} = {", ".join(sorted(ids))}' for digest, ids in sorted(distinct.items())
+            )
+            problems.append(
+                f"{key}: the sets were given DIFFERENT prompts ({groups}). The comparison between "
+                "them is not valid until they agree — regenerate the candidate, which replays the "
+                "reference's recorded prompt rather than computing one"
+            )
+    return problems
+
+
+def check_integrity(provider, document: dict) -> list[str]:
+    """Two things about the manifest as a whole, rather than about any one image."""
+    problems: list[str] = []
+    declared = document.get("assetCount")
+    if declared is not None and declared != len(document["assets"]):
+        # It was wrong in two of the estate's three asset repositories when this was written,
+        # because the count is written by the generator and later entries were added by another
+        # tool. A manifest whose own summary disagrees with its own body is one nobody can quote.
+        problems.append(
+            f'MANIFEST.json: assetCount says {declared} and the file carries '
+            f'{len(document["assets"])} entries'
+        )
+    recorded = {a["path"] for a in document["assets"]}
+    on_disk = {str(p.relative_to(provider.root)) for p in provider.root.glob("assets/**/*.png")}
+    for orphan in sorted(on_disk - recorded):
+        problems.append(f"{orphan}: on disk with no manifest entry")
+    return problems
+
+
+def verify_set(provider, document: dict, wanted: set[str]) -> list[str]:
+    plan = json.loads(PLAN.read_text())
     ground_target = hex_to_rgb(GROUND)
 
     failures: list[str] = []
@@ -337,7 +407,7 @@ def main(argv: list[str]) -> int:
     for asset in document["assets"]:
         if wanted and asset["set"] not in wanted:
             continue
-        path = HERE / asset["path"]
+        path = provider.root / asset["path"]
         problems: list[str] = []
 
         if not path.exists():
@@ -437,8 +507,52 @@ def main(argv: list[str]) -> int:
         f"{MAX_SCENE_EDGE_LUMA} on scene edges); hue tolerance {MAX_HUE_DRIFT:.0f} degrees, "
         f"family ceiling {MAX_FAMILY_SPREAD:.0f} degrees"
     )
-    print(f"{len(failures)} failure(s)")
-    return 1 if failures else 0
+    return failures
+
+
+def main(argv: list[str]) -> int:
+    """Run every check, per provider, and then the two that are about the set of sets.
+
+    A candidate set is expected to be RED while it is being worked on. That must not be able to
+    turn the shipped reference set red with it, which is why each set has its own manifest and its
+    own pass-or-fail line, and why the default is "every set that exists on disk" rather than a
+    fixed list — a challenger that has not been generated yet is the normal state, not a fault.
+    """
+    parser = argparse.ArgumentParser(description="Verify one or more generated asset sets.")
+    providers.add_argument(parser)
+    parser.add_argument("--cvd", action="store_true", help="the colour-vision report only")
+    parser.add_argument("sets", nargs="*", help="only these sets")
+    args = parser.parse_args(argv)
+
+    if args.cvd:
+        return cvd_report(json.loads(PLAN.read_text()))
+
+    chosen = providers.selected(args)
+    if not chosen:
+        print("no provider has a manifest on disk", file=sys.stderr)
+        return 1
+
+    all_failures: list[str] = []
+    documents: dict[str, dict] = {}
+
+    for provider in chosen:
+        print(f"===== {provider.id}  ({provider.label})")
+        document = json.loads(provider.manifest.read_text())
+        documents[provider.id] = document
+        failures = verify_set(provider, document, set(args.sets))
+        failures.extend(check_integrity(provider, document))
+        print(f"{len(failures)} failure(s) in {provider.id}\n")
+        all_failures.extend(f"{provider.id}: {f}" for f in failures)
+
+    parity = check_parity(documents)
+    if len(documents) > 1:
+        print(f"===== prompt parity across {len(documents)} sets: {len(parity)} disagreement(s)")
+        for problem in parity:
+            print(f"  -> {problem}")
+    all_failures.extend(f"parity: {p}" for p in parity)
+
+    print(f"\n{len(all_failures)} failure(s) across {len(chosen)} set(s)")
+    return 1 if all_failures else 0
 
 
 if __name__ == "__main__":

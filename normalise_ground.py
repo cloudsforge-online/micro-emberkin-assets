@@ -47,6 +47,8 @@ import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+# Resolved per provider at run time; see main(). Kept as a name so nothing below
+# reaches for a hardcoded path.
 MANIFEST = HERE / "MANIFEST.json"
 
 TARGET = (0x12, 0x10, 0x0F)
