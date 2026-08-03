@@ -1,5 +1,5 @@
 {
-  "$scope": "All 9 `types` icons of each set, scored row by row off review/compare/compare-types.png. A complete set rather than a sample: types is nine assets and the sheet shows every one of them beside its counterpart.",
+  "$scope": "All 9 `types` icons of each set, scored row by row off review/compare/compare-types.png. A complete set rather than a sample: types is nine assets and the sheet shows every one of them beside its counterparts. NOTE the third column is a DIFFERENT PROMPT DIALECT — see COMPARISON.md's positive-dialect section. It is scored on the same taxonomy and the same nine assets, which is what makes the tally readable at all, but it is not a controlled comparison with the first two columns and must not be read as one.",
   "flux-2-pro": {
     "frame / border / bounding box": 0,
     "non-flat rendering (3D, bevel, gradient, glow, texture)": 0,
@@ -17,7 +17,17 @@
   "$notes": {
     "9 of 9": "Qwen framed every single type icon and rendered every one with bevel, glow or photographic texture. The consistency is the point: this is not noise, it is a house style being applied over the brief.",
     "types/gale": "Qwen's worst single asset in the estate. The brief is a wind glyph; it returned a recursive grid of framed picture-boxes with no wind in it at all.",
-    "types/tide": "Qwen returned a recognisable pastiche of Hokusai's Great Wave rather than a flat wave glyph. Worth flagging beyond aesthetics \u2014 a set of shipped brand assets that quotes a specific famous artwork is a different kind of risk from one that is merely off-style.",
-    "types/stone": "a photoreal boulder in place of a flat glyph."
+    "types/tide": "Qwen returned a recognisable pastiche of Hokusai's Great Wave rather than a flat wave glyph. Worth flagging beyond aesthetics — a set of shipped brand assets that quotes a specific famous artwork is a different kind of risk from one that is merely off-style.",
+    "types/stone": "a photoreal boulder in place of a flat glyph.",
+    "qwen-image-2512-positive: the register did not move": "9 of 9 framed and 9 of 9 non-flat, against a brief in which every prohibition had been restated as a positive assertion and NOT ONE prohibition word remained — the dialect's own residual check refuses to send a prompt that still carries any. 'no bevels, no 3D, no drop shadows' became 'every shape is one single solid block of colour, the same value at its centre as at its rim, every edge a hard boundary'; 'no frame, no border, no bounding box' became 'the subject's own outline is the only edge anywhere in the frame'. Every icon came back inside a drawn frame with a bevelled subject in it. This is the model's register, not a misread brief.",
+    "qwen-image-2512-positive: what DID move": "types/gale stopped being a recursive grid of framed picture-boxes and became a single framed diamond, and types/tide stopped being a Hokusai pastiche and became a plain wave curl. So the positive phrasing did fix the two assets COMPARISON.md called a different class of failure — the ones where the model wandered off the subject entirely — while leaving the register untouched. gale's idea is still wrong (a diamond, not three right-pointing chevrons); tide's is now right.",
+    "qwen-image-2512-positive: idea drift got worse": "4 of 9 unrecognisable against the literal set's 1 of 9: gale (a diamond), lumen (three bevelled spheres beside the disc), spark (a burst with three nodes on its spokes), umbra (a segmented ring, not a disc with a crescent bitten out). Restating a shape prohibition as a positive description gives the model more shape vocabulary to elaborate on, and it elaborates."
+  },
+  "qwen-image-2512-positive": {
+    "frame / border / bounding box": 9,
+    "non-flat rendering (3D, bevel, gradient, glow, texture)": 9,
+    "ground not the flat ash field": 4,
+    "idea not recognisable from plan.ts": 4,
+    "recognisable pastiche of an existing artwork": 0
   }
 }
