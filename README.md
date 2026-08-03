@@ -12,6 +12,8 @@ licence string carried by each asset.
 **It is all 2D.** See §7 — the 3D creature models this game actually renders are a different
 artefact entirely and are not produced here.
 
+Design authority: [`ecosystem/24-asset-model-comparison.md`](https://github.com/cloudsforge-online/micro-docs/blob/main/ecosystem/24-asset-model-comparison.md)
+
 ---
 
 ## 1. What is here
@@ -291,3 +293,13 @@ checkouts beside it.** The *artefacts* are self-contained — the PNGs, `MANIFES
 
 `normalise_ground.py` and `verify.py --cvd` are pure standard library. `derive.py`, `sheet.py` and
 the rest of `verify.py` need Pillow. Nothing here has `node_modules` of its own.
+
+---
+
+## Provenance
+
+The code in this repository was written by **Claude Opus 5** and **Claude Fable 5**, under
+human direction and review.
+
+The shipped art was generated with **FLUX 2 Pro** (`flux-2-pro`). Comparison sets generated
+with **Qwen-Image 2512** (`qwen-image-2512`) live under `candidates/` and are never shipped.
