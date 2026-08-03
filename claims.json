@@ -1,0 +1,139 @@
+{
+  "$comment": [
+    "Every figure this repository's documents state, and the derivation that re-computes it from",
+    "source. Read by claims.py, which is byte-identical across the three asset repositories while",
+    "this file is not — same arrangement as dialects.json and providers.json, for the same reason:",
+    "the engine is estate-wide and the content is this repository's.",
+    "",
+    "A claim is `find`, a regular expression with EXACTLY ONE capture group, plus `derive`. The",
+    "expression must match exactly once in `document`. Zero matches fails — that is the failure",
+    "mode this kind of guard rots into, and a pattern that has stopped matching cannot be told",
+    "from a claim someone deleted. More than one match fails too: it means the figure is stated in",
+    "two places and only one of them is being checked.",
+    "",
+    "THE TWO DEFECTS THIS FILE WAS WRITTEN AFTER. The section on the positive dialect said idea",
+    "drift rose from 2 of 15, when the three repositories' own scored artefacts sum to 1 — and it",
+    "said so in both game repositories because the paragraph had been copied between them. The",
+    "same copy carried '74 of them here' into aetherholm, where the figure is 92. A sentence",
+    "copied between repositories carries its numbers with it, and nothing was re-deriving them.",
+    "",
+    "The pilot figures are sums over all three repositories' $pilot blocks, so a claim here is",
+    "checked against emberkin's, aetherholm's and micro-brand's scoring together. That is",
+    "deliberate: the row that was wrong was wrong in the SUM, not in any one repository's tally."
+  ],
+  "claims": [
+    {
+      "document": "COMPARISON.md",
+      "find": "\\n(\\d+) manifest entries",
+      "derive": "repo.assets"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "manifest entries: \\*\\*(\\d+) generated\\*\\*",
+      "derive": "repo.generated"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "generated\\*\\* and \\*\\*(\\d+) derived\\*\\*",
+      "derive": "repo.derived"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "derived\\*\\*\\. Only the (\\d+) are compared",
+      "derive": "repo.generated"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "\\| generated \\| (\\d+) \\|",
+      "derive": "repo.generated"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "\\| assets needing at least one retry \\| (\\d+) of \\d+ \\|",
+      "derive": "repo.retried"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "\\| assets needing at least one retry \\| \\d+ of (\\d+) \\|",
+      "derive": "repo.generated"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "The full (\\d+)-asset pilot",
+      "derive": "pilot.assets",
+      "why": "the three $pilot blocks' $assets lists, summed"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "framing survived at (\\d+) of 15",
+      "derive": "pilot(framed / bordered / boxed|qwen-image-2512-positive)"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "non-flat rendering at (\\d+) of 15",
+      "derive": "pilot(non-flat (3D, bevel, gradient, glow)|qwen-image-2512-positive)"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "drift rose from (\\d+) of 15",
+      "derive": "pilot(idea not recognisable from the plan|qwen-image-2512)",
+      "why": "emberkin 1 of 9 + aetherholm 0 of 4 + micro-brand 0 of 2; both game files shipped 2"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "drift rose from \\d+ of 15 to (\\d+) of 15",
+      "derive": "pilot(idea not recognisable from the plan|qwen-image-2512-positive)"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "set is a\\n(\\d+)-asset pilot, not a whole set",
+      "derive": "pilot.assets"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "\"planned but never generated\" — (\\d+) of them here",
+      "derive": "candidate.ungenerated(qwen-image-2512-positive)",
+      "why": "this repository's generated entries minus the entries the pilot set actually holds"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "Phase 2 — all (\\d+) in this dialect",
+      "derive": "estate.generated"
+    },
+    {
+      "document": "materialise.py",
+      "find": "([\\d,]+) entries across the three repositories",
+      "derive": "estate.assets"
+    },
+    {
+      "document": "materialise.py",
+      "find": "of which (\\d+) are generated",
+      "derive": "estate.generated"
+    },
+    {
+      "document": "materialise.py",
+      "find": "are generated and (\\d+) derived",
+      "derive": "estate.derived"
+    },
+    {
+      "document": "materialise.py",
+      "find": "the Qwen brand set is (\\d+) of \\d+ today",
+      "derive": "candidate.assets(brand|qwen-image-2512)"
+    },
+    {
+      "document": "materialise.py",
+      "find": "the Qwen brand set is \\d+ of (\\d+) today",
+      "derive": "sibling.assets(brand)"
+    },
+    {
+      "document": "materialise.py",
+      "find": "Emberkin set is (\\d+) of \\d+\\.",
+      "derive": "candidate.assets(emberkin-assets|qwen-image-2512)"
+    },
+    {
+      "document": "materialise.py",
+      "find": "Emberkin set is \\d+ of (\\d+)\\.",
+      "derive": "sibling.assets(emberkin-assets)"
+    }
+  ]
+}

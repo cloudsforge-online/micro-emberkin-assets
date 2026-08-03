@@ -3,6 +3,14 @@
 The criteria are estate-wide and are stated in full in **`micro-brand/COMPARISON.md`**. This file
 records what is specific to this set, and the baseline numbers a challenger is measured against.
 
+**Every count below is re-derived by `python3 claims.py`**, which reads the figure out of this file
+and recomputes it from the manifests, the dialect registry and the scored artefacts. It is here
+because two figures in the positive-dialect section were wrong and had been wrong in BOTH game
+repositories at once: the paragraph was copied from one to the other and brought its numbers with
+it. Idea drift was stated as 2 of 15 where the three repositories' own scored artefacts sum to 1,
+and "74 of them here" was true of emberkin and not of aetherholm, where it is 92. A number a
+document carries and nothing recomputes is a number waiting to be copied somewhere it is false.
+
 Written **before** a challenger set exists, which is the only time criteria can be written
 honestly. Once the images are on screen it is very easy to discover that the thing the winner
 happens to be good at was the thing that mattered all along.
@@ -154,7 +162,7 @@ it framed everything, we asked in the positive and it framed everything.
 Positive phrasing did do two things. Construction guides went to zero, and both assets flagged as a
 different class of failure came back on-subject — a recursive grid of picture frames became a single
 framed shape, and a Hokusai pastiche became a plain wave curl. And it made one thing worse: idea
-drift rose from 2 of 15 to 8 of 15, because restating a shape prohibition as a positive description
+drift rose from 1 of 15 to 8 of 15, because restating a shape prohibition as a positive description
 hands the model more shape vocabulary and it elaborates on it.
 
 **One thing to know before reading `verify.py` on this set.** The positive-dialect set is a
@@ -164,6 +172,6 @@ partial set, not a defect in the set, and it is why the count is not comparable 
 literal-dialect candidate's. Prompt parity, checksums, dimensions and C2PA all pass at zero
 failures across all three sets.
 
-Phase 2 — all 233 in this dialect — was **not** run. It would spend a deployment lifetime to confirm
+Phase 2 — all 235 in this dialect — was **not** run. It would spend a deployment lifetime to confirm
 a negative already established at 15 of 15 with no variance. Stopping is the finding, and the
 verdict above is unchanged: **FLUX, decisively.**

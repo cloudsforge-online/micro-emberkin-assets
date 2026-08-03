@@ -56,8 +56,8 @@ and untouched.
 
 ## WHEN THE CHOSEN SET IS INCOMPLETE, THIS FAILS AND WRITES NOTHING
 
-332 entries across the three repositories, of which 233 are generated and 99 derived, and a
-challenger is normally partial for most of its life — the Qwen brand set is 93 of 94 today and its
+336 entries across the three repositories, of which 235 are generated and 101 derived, and a
+challenger is normally partial for most of its life — the Qwen brand set is 97 of 98 today and its
 Emberkin set is 134 of 137. So incompleteness is the common case, not the exceptional one.
 
 A missing asset therefore **fails loudly, names every gap, and materialises nothing at all**. It
