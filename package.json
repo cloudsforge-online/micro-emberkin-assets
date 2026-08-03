@@ -35,6 +35,7 @@
     "sheets": "python3 sheet.py",
     "probe": "cd ../studio && node --import tsx ../emberkin-assets/probe.ts",
     "test": "cd ../studio && node --import tsx --test ../emberkin-assets/parity.test.ts",
-    "compare": "python3 compare.py"
+    "compare": "python3 compare.py",
+    "claims": "python3 claims.py"
   }
 }

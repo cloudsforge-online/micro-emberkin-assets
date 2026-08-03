@@ -23,6 +23,37 @@
   ],
   "claims": [
     {
+      "document": "README.md",
+      "find": "\\n(\\d+) files, \\d+ of them generated",
+      "derive": "repo.assets"
+    },
+    {
+      "document": "README.md",
+      "find": "files, (\\d+) of them generated",
+      "derive": "repo.generated"
+    },
+    {
+      "document": "README.md",
+      "find": "of them generated and (\\d+) derived",
+      "derive": "repo.derived"
+    },
+    {
+      "document": "README.md",
+      "find": "six checks over all (\\d+) files",
+      "derive": "repo.assets"
+    },
+    {
+      "document": "README.md",
+      "find": "\\*\\*All (\\d+)\\ngenerated files carry it\\*\\*",
+      "derive": "repo.c2pa",
+      "why": "measured off the bytes; in this repository every generated file keeps its box"
+    },
+    {
+      "document": "README.md",
+      "find": "The (\\d+) derivatives — the dex thumbnails",
+      "derive": "repo.derived"
+    },
+    {
       "document": "COMPARISON.md",
       "find": "\\n(\\d+) manifest entries",
       "derive": "repo.assets"

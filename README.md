@@ -25,10 +25,10 @@ assets/<set>/<slug>-<width>x<height>.png
 | `species/` | 50 at 1024, 50 at 256 | One portrait per Kin, plus a dex thumbnail resampled from it. |
 | `types/` | 9 | The nine element icons, each a topologically different shape. |
 | `biomes/` | 6 | Region key art, 1536x640. |
-| `title/` | 7 | Mark, wordmark, capsule, hero, OG card (plus its as-delivered source), social banner. |
+| `title/` | 10 | Mark, wordmark, capsule, hero, OG card (plus its as-delivered source), social banner, and the three favicons derived from the mark. |
 | `ui/` | 12 | Eight glyphs and four frames, in the estate's ember accent. |
 
-134 files, 83 of them generated and 51 derived. The set is defined by
+137 files, 83 of them generated and 54 derived. The set is defined by
 `docs/ecosystem/19-new-products.md` §1.4; the per-Kin briefs are read out of
 `kindred-upstream/content/{species,visuals,types,campaign}.json` and the art direction from
 `kindred-upstream/docs/ART_BIBLE.md`. Neither is copied into this repository — `plan.ts` reads
@@ -168,7 +168,7 @@ object, and say so in every clause that mentions colour rather than only the qui
 
 ## 6. What is checked
 
-`verify.py` runs six checks over all 134 files and currently reports **0 failures**:
+`verify.py` runs six checks over all 137 files and currently reports **0 failures**:
 
 1. **Completeness**, against `PLAN.json` rather than against itself.
 2. **Dimensions** — the bytes must measure what the manifest declares.
@@ -217,7 +217,8 @@ generated files carry it**, verified by reading the marker out of the bytes rath
 it from the vendor. `normalise_ground.py` copies every ancillary PNG chunk through by hand, so
 rewriting a ground does not destroy the provenance box.
 
-The 51 derivatives — the dex thumbnails and the OG crop — are re-encoded by Pillow, which has
+The 54 derivatives — the dex thumbnails, the title favicons and the OG crop — are re-encoded by
+Pillow, which has
 never heard of a `caBX` chunk, so **they keep the invisible pixel watermark and lose the C2PA
 box**. That is why every derivative names its source in `derivedFrom`, why the as-delivered OG
 card is kept beside its crop, and why `c2pa` on a derivative reads `false`: it is measured on the
