@@ -1,5 +1,10 @@
 # Emberkin art set
 
+[![ci](https://github.com/cloudsforge-online/micro-emberkin-assets/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudsforge-online/micro-emberkin-assets/actions/workflows/ci.yml)
+![assets](https://img.shields.io/badge/assets-137%20PNG-FF4785)
+![split](https://img.shields.io/badge/of%20which-83%20generated%20%C2%B7%2054%20derived-C77DFF)
+![art](https://img.shields.io/badge/art-FLUX%202%20Pro-0A7CFF)
+
 The 2D art for **Emberkin**, the estate's monster-collecting game: 83 generated images and 51
 derivatives, every one of them made by **FLUX 2 Pro** on Azure AI Foundry and recorded in
 [MANIFEST.json](MANIFEST.json) with the exact prompt that produced it, the model, the delivered
@@ -298,8 +303,5 @@ the rest of `verify.py` need Pillow. Nothing here has `node_modules` of its own.
 
 ## Provenance
 
-The code in this repository was written by **Claude Opus 5** and **Claude Fable 5**, under
-human direction and review.
-
-The shipped art was generated with **FLUX 2 Pro** (`flux-2-pro`). Comparison sets generated
-with **Qwen-Image 2512** (`qwen-image-2512`) live under `candidates/` and are never shipped.
+The code in this repository was written by **Claude Opus 5** and **Claude Fable 5**, assets
+generated with **FLUX 2 Pro**, under human direction and review.
