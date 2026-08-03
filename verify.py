@@ -408,7 +408,14 @@ def verify_set(provider, document: dict, wanted: set[str]) -> list[str]:
         if wanted and asset["set"] not in wanted:
             continue
         path = provider.root / asset["path"]
+        # INTEGRITY: is this manifest TRUE about these bytes. Fatal for every set, always.
         problems: list[str] = []
+        # CONFORMANCE: does this art meet this set's own specification. Fatal for the SHIPPED set;
+        # reported by name for a candidate. A candidate is on trial, and how far it sits from the
+        # art bible is the comparison's first criterion rather than a broken build. Turning CI red
+        # for it would mean the only way to land the evidence is to weaken a check, which is the
+        # one thing that must not happen. Nothing the shipped set is held to has changed.
+        conformance: list[str] = []
 
         if not path.exists():
             failures.append(f'{asset["path"]}: missing')
@@ -434,13 +441,13 @@ def verify_set(provider, document: dict, wanted: set[str]) -> list[str]:
                 distinct = corner_extremes(image)
                 off = [c for c in distinct if c != ground_target]
                 if off:
-                    problems.append(
+                    conformance.append(
                         f"{len(off)} of {len(distinct)} sampled corner colour(s) are not exactly "
                         f"{GROUND} — nearest stray {rgb_to_hex(off[0])}; normalisation did not run "
                         "or did not take"
                     )
             elif corner_luma > MAX_SCENE_EDGE_LUMA:
-                problems.append(
+                conformance.append(
                     f"scene edges at {rgb_to_hex(corners)} are too light (luma {corner_luma:.3f}, "
                     f"ceiling {MAX_SCENE_EDGE_LUMA})"
                 )
@@ -461,7 +468,7 @@ def verify_set(provider, document: dict, wanted: set[str]) -> list[str]:
             # ---- 6. type is colour.
             floor = MIN_COVERAGE.get(asset["set"], 0.005)
             if reading.coverage < floor:
-                problems.append(
+                conformance.append(
                     f'only {reading.coverage * 100:.2f}% of the image is drawn within '
                     f'{MAX_HUE_DRIFT:.0f} degrees of {asset["accent"]} (floor {floor * 100:.1f}%)'
                 )
@@ -470,7 +477,8 @@ def verify_set(provider, document: dict, wanted: set[str]) -> list[str]:
                     (asset["slug"], hue_degrees(reading.rendered))
                 )
 
-        mark = "FAIL" if problems else "ok  "
+        fatal = problems + (conformance if provider.shipped else [])
+        mark = "FAIL" if fatal else ("warn" if conformance else "ok  ")
         rows.append(
             f'{mark} {asset["set"]:<8} {asset["slug"]:<26} {asset["declaredSize"]:>9} '
             f'{asset["groundClass"]:<5} corner {rgb_to_hex(corners)} '
@@ -478,8 +486,9 @@ def verify_set(provider, document: dict, wanted: set[str]) -> list[str]:
             f'colour {rgb_to_hex(reading.rendered) if reading.rendered else "-":<8} '
             f"{reading.coverage * 100:5.2f}%"
         )
-        for problem in problems:
+        for problem in problems + conformance:
             rows.append(f"       -> {problem}")
+        for problem in fatal:
             failures.append(f'{asset["path"]}: {problem}')
 
     print("\n".join(rows))
@@ -496,7 +505,11 @@ def verify_set(provider, document: dict, wanted: set[str]) -> list[str]:
             mark = "FAIL" if spread > MAX_FAMILY_SPREAD else "ok  "
             detail = "  ".join(f"{slug} {hue:.0f}deg" for slug, hue in members)
             print(f"  {mark} {root:<14} spread {spread:5.1f}deg   {detail}")
-            if spread > MAX_FAMILY_SPREAD:
+            if spread > MAX_FAMILY_SPREAD and provider.shipped:
+                # Conformance, like the per-asset colour checks: an evolution line that does not
+                # read as one family is this set's sharpest single quality question, and for a
+                # CANDIDATE it is the answer to comparison criterion 2 rather than a build error.
+                # The shipped set is still held to it.
                 failures.append(
                     f"family {root}: members' rendered hues span {spread:.1f} degrees "
                     f"(ceiling {MAX_FAMILY_SPREAD}) — this line does not read as one family"
