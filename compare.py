@@ -159,6 +159,8 @@ class SetReading:
         self.illegible: list[str] = []
         # criterion 5
         self.c2pa = sum(1 for a in self.assets if a["c2pa"])
+        # A cheap, objective proxy for "flat vector or photograph".
+        self.bytes_per_mp: list[float] = []
 
     def measure(self) -> None:
         for asset in self.assets:
@@ -172,6 +174,16 @@ class SetReading:
 
             with Image.open(path) as raw:
                 image = raw.convert("RGB")
+                # PNG bytes per megapixel. Flat geometric art is large areas of identical colour
+                # and compresses enormously; photographic texture — paper grain, fibre, soft
+                # shadow — does not. It is a blunt instrument and it is not a quality judgement,
+                # but it separates "drew a flat mark" from "photographed an object" without an eye,
+                # across a whole set, for free. Reported under criterion 2, because a model that
+                # answers a flat-graphic brief photographically has a house style problem rather
+                # than a per-image one.
+                megapixels = (image.size[0] * image.size[1]) / 1_000_000
+                if megapixels > 0 and not asset.get("derivedFrom"):
+                    self.bytes_per_mp.append(asset["byteSize"] / megapixels / 1024)
                 ground = sample_ground(image)
                 ground_l = luma(ground)
                 self.ground_luma.append(ground_l)
@@ -271,13 +283,28 @@ class SetReading:
         if hours is None:
             return ("UNKNOWN", f"{window.name} records no hours")
         figure = f"{hours:g} {billing['unit']}s"
+        # `or`, not `.get(default)`: the default never fires on an explicit null, and these
+        # fields are explicitly null precisely when the news is bad. A missing deletedAt rendering
+        # as "deleted None" would read like a formatting nit while quietly hiding that the meter
+        # is still running.
+        deleted = record.get("deletedAt") or "NOT DELETED — STILL BILLING"
+        created = record.get("createdAt") or "unknown (predates this run; billed lifetime is longer)"
         detail = (
-            f"{record.get('sku', billing.get('sku'))}, created {record.get('createdAt', '?')}, "
-            f"deleted {record.get('deletedAt', 'STILL RUNNING — still billing')}; "
-            f"{len(self.generated)} generations in that window"
+            f"{record.get('sku') or billing.get('sku')}, created {created}, "
+            f"deleted {deleted}; {len(self.generated)} generations in that window"
         )
         if rate:
             detail += f"; at the recorded rate that is {hours * rate:.2f} per hour-unit x hours"
+        if record.get("sharedWith"):
+            # The single most misleading thing a reader could do with this number is divide it by
+            # this repository's generation count. One deployment served every set, so the hours are
+            # JOINT and there is no non-arbitrary way to split them — by asset count, by wall
+            # clock, by pixels? Each gives a different answer and none is a fact.
+            detail += (
+                f"; these hours are SHARED with {', '.join(record['sharedWith'])} — one deployment "
+                "served every set, so they cannot be attributed to this repository alone and must "
+                "not be divided by its generation count"
+            )
         return (figure, detail)
 
 
@@ -359,12 +386,13 @@ def build_sheet(kind: str, readings: list[SetReading], tile_width: int = 420) ->
                 sheet.paste(
                     image.convert("RGB").resize((tile_width, tile_height), Image.LANCZOS), (x, y)
                 )
-            draw.text(
-                (x, y + tile_height + 4),
-                f'{key}  {asset["deliveredSize"]}  c2pa={asset["c2pa"]}  retries={asset["retries"]}',
-                fill=(190, 185, 175),
-                font=typeface,
-            )
+            # Truncated to the tile. A caption that overruns its column collides with the next
+            # one and the sheet becomes unreadable exactly where it is supposed to be doing its
+            # job — this is the artefact a person judges the comparison from.
+            caption = f'{key}  r{asset["retries"]}'
+            while typeface.getlength(caption) > tile_width - 6 and len(caption) > 8:
+                caption = caption[:-1]
+            draw.text((x, y + tile_height + 4), caption, fill=(190, 185, 175), font=typeface)
 
     REVIEW.mkdir(parents=True, exist_ok=True)
     out = REVIEW / f"compare-{kind}.png"
@@ -409,6 +437,16 @@ def report(readings: list[SetReading]) -> None:
     row("accent hue error: SPREAD", [f"{spread(r.hue_error):.1f}" for r in readings])
     row("ink coverage spread (in-kind)", [f"{r.ink_spread:.4f}" for r in readings])
     row("ground luma spread", [f"{spread(r.ground_luma):.4f}" for r in readings])
+    row("KB per megapixel (median)", [f"{median(r.bytes_per_mp):.0f}" for r in readings])
+    print("   CONFOUND, and it is a big one: the reference set has had normalise_ground.py run over")
+    print("   it (commit 8314af3, \"snap every ground to the exact ash value\"), which is why its")
+    print("   ground luma spread is exactly 0. A candidate set as generated has not. Ground spread")
+    print("   is therefore NOT a like-for-like model comparison, and the honest reading is the")
+    print("   candidate's absolute figure on its own. The accent, ink and KB/MP rows are unaffected:")
+    print("   normalisation rewrites near-ground pixels only and leaves the artwork alone.")
+    print("   KB/MP is a proxy, not a verdict: flat geometric art is large areas of one colour and")
+    print("   compresses hard; photographic texture does not. A large gap here means the two models")
+    print("   answered the same brief in different REGISTERS, which criterion 2 cares about most.")
 
     print("\n3. LEGIBILITY AT THE SIZE IT IS USED  (contrast kept under Lanczos downscale)")
     for size in LEGIBILITY_SIZES:
@@ -422,7 +460,10 @@ def report(readings: list[SetReading]) -> None:
     print("   Countable here: pale ground, no accent present, nearly-blank output — all above.")
     tally = REVIEW / "artefacts.json"
     if tally.exists():
-        counts = json.loads(tally.read_text())
+        counts = {k: v for k, v in json.loads(tally.read_text()).items() if not k.startswith("$")}
+        scope = json.loads(tally.read_text()).get("$scope")
+        if scope:
+            print(f"   Tallied by eye over: {scope}")
         for defect in sorted({d for provider in counts.values() for d in provider}):
             row(defect, [str(counts.get(i, {}).get(defect, "-")) for i in ids])
     else:
