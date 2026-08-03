@@ -37,4 +37,13 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pillow
+      # BEFORE the run, not after, and it needs no images or keys. `check_parity` compares sets to
+      # each other and there has been one set on disk since the Qwen challenger was withdrawn, so
+      # it is DORMANT — it returns clean because it was handed one document, not because it looked
+      # and found nothing. `--self-test` hands the real function two-set fixtures with a
+      # deliberately broken asset and fails if it stays green, which is the difference between
+      # "nothing is wrong" and "nothing is looking". The verifier's own exit code cannot tell them
+      # apart, and a check that lost its operand is this estate's most-repeated defect.
+      - name: the cross-set guard still fails when broken
+        run: python3 verify.py --self-test
       - run: python3 verify.py

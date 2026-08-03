@@ -31,6 +31,7 @@
     "derive": "cd ../studio && node --import tsx ../emberkin-assets/generate.ts --derive-only",
     "normalise": "python3 normalise_ground.py",
     "verify": "python3 verify.py",
+    "verify:self-test": "python3 verify.py --self-test",
     "cvd": "python3 verify.py --cvd",
     "sheets": "python3 sheet.py",
     "probe": "cd ../studio && node --import tsx ../emberkin-assets/probe.ts",

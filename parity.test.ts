@@ -57,8 +57,6 @@ import {
   managedHeaders,
   MODEL_FIELD,
   modelValueFor,
-  openAiImagesBackend,
-  sizeParamFor,
   isWarming,
   awaitWarm,
   resetWarmingGate,
@@ -128,6 +126,38 @@ test('a dialect is a pure function of the record, so a cross-dialect set is re-d
   // what the named rules produce from the reference's own record, so the two sets are provably two
   // phrasings of ONE brief about ONE asset. verify.py --parity runs the same check on the
   // artefacts, from dialects.py, against the same dialects.json.
+  // ---- THE PROPERTY, OVER EVERY REGISTERED DIALECT. This half always has an operand.
+  //
+  // It used to loop over registered PROVIDERS and end with
+  // `assert.ok(checked > 0, 'no non-literal provider is registered, so this property is untested')`
+  // — a dormancy guard the original author was right to write, and which started failing the day
+  // the owner withdrew Qwen and its positive-dialect entry went with it.
+  //
+  // The guard was NOT relaxed to `>= 0`, which would have made a check pass by removing its
+  // ability to fail. The loop was moved onto the set the property is actually about. "A dialect is
+  // a pure function of the record" is a statement about DIALECTS; providers were only ever how the
+  // estate happened to reach them, and `dialects.json` still registers `positive` whether or not
+  // any set was generated in it. So this half is broader than what it replaces: it covers a
+  // dialect with no provider today, and it covers a third dialect the day it is registered rather
+  // than the day a set is generated in it.
+  let derived = 0
+  for (const dialect of DIALECTS) {
+    if (dialect.id === LITERAL.id) continue
+    for (const record of referencePrompts().values()) {
+      const sent = applyDialect(dialect.id, record)
+      // Pure: same input, same output, no hidden state between calls.
+      assert.equal(sent, applyDialect(dialect.id, record), `${dialect.id} is not deterministic`)
+      // Total: it returns a prompt for every record rather than throwing on the awkward ones.
+      assert.equal(typeof sent, 'string')
+      derived += 1
+    }
+  }
+  assert.ok(derived > 0, 'no non-literal dialect is registered, so this property is untested')
+
+  // ---- AND THE SAME PROPERTY THROUGH promptForProvider, which is what actually runs at
+  // generation time. DORMANT while every registered provider is literal: the loop below has
+  // nothing to iterate, and `checkedViaProvider` is reported rather than asserted away, because a
+  // zero here means "there is no non-literal set to send" and not "the transform agreed".
   const recorded = referencePrompts()
   let checked = 0
   for (const planned of plannedAssets()) {
@@ -141,7 +171,12 @@ test('a dialect is a pure function of the record, so a cross-dialect set is re-d
       checked += 1
     }
   }
-  assert.ok(checked > 0, 'no non-literal provider is registered, so this property is untested')
+  assert.equal(
+    checked === 0,
+    PROVIDERS.every((p) => p.dialect === LITERAL.id),
+    'checkedViaProvider disagrees with the registry: either a non-literal provider was skipped, ' +
+      'or one was iterated that is not registered',
+  )
 })
 
 test('a dialect that is not the identity must actually differ, or its label is a lie', () => {
@@ -204,24 +239,49 @@ test('every registered provider declares a dialect that exists', () => {
   }
 })
 
-test('the two Qwen sets differ in exactly one field, and it is the dialect', () => {
-  // The controlled part of the second experiment. If they differed in the model, the deployment,
-  // the route or the concurrency, a difference in their output would have more than one available
-  // explanation and the exercise would prove nothing.
-  const literal = providerById('qwen-image-2512')
-  const positive = providerById('qwen-image-2512-positive')
-  const differs = (Object.keys(literal) as (keyof typeof literal)[]).filter(
-    (k) => JSON.stringify(literal[k]) !== JSON.stringify(positive[k]),
+/**
+ * WHAT REPLACED THE DIALECT-PAIR TEST, AND WHY IT IS NOT A REDUCTION.
+ *
+ * A test used to assert that `qwen-image-2512` and `qwen-image-2512-positive` differed in exactly
+ * one meaningful field — the dialect — so that a difference in their output had exactly one
+ * available explanation. The owner withdrew that model and both entries are gone, and a test that
+ * looks up a deleted provider id can only ever fail for the wrong reason.
+ *
+ * The property it protected is not "those two entries exist". It is **"the registry can express two
+ * sets that share every wire fact and differ only in what was asked"**, which is what makes the
+ * dialect experiment controlled at all. That is asserted below against a pair CONSTRUCTED here, so
+ * it holds with one provider registered, with four, and on the day a second challenger lands.
+ */
+test('the registry can still express a controlled dialect pair', () => {
+  const base = providerById(REFERENCE.id)
+  // Same deployment, same route, same key, same concurrency; one field different. If `dialect`
+  // ever stops being enough to express that, the next positive-vs-literal experiment silently
+  // becomes uncontrolled and nothing in the output would say so.
+  const positive = { ...base, id: `${base.id}-positive`, dialect: 'positive' }
+  const differs = (Object.keys(base) as (keyof typeof base)[]).filter(
+    (k) => JSON.stringify(base[k]) !== JSON.stringify(positive[k]),
   )
-  assert.deepEqual(differs.sort(), ['billing', 'dialect', 'id', 'label', 'notes', 'root'])
-  assert.equal(literal.dialect, LITERAL.id)
-  assert.equal(positive.dialect, 'positive')
-  assert.equal(literal.deployment, positive.deployment, 'same deployment, or it is not controlled')
-  assert.equal(literal.adapter, positive.adapter)
-  assert.equal(literal.route, positive.route)
-  assert.equal(literal.concurrency, positive.concurrency)
-  assert.deepEqual(literal.env, positive.env)
-  assert.equal(literal.billing.unit, positive.billing.unit)
+  assert.deepEqual(differs.sort(), ['dialect', 'id'])
+  assert.equal(base.dialect, LITERAL.id)
+  assert.ok(dialectById('positive'), 'the positive dialect is no longer registered')
+  // A clause taken from the real rule list rather than invented, so this asserts that the dialect
+  // still transforms THIS estate's briefs and not merely that it transforms something.
+  const clause = 'with exactly one accent colour — #e8622c — and no second hue anywhere'
+  assert.notEqual(
+    applyDialect('positive', clause),
+    clause,
+    'the positive dialect has become the identity transform, so the pair could not differ',
+  )
+  assert.deepEqual(
+    residualNegations('positive', applyDialect('positive', clause)),
+    [],
+    'the positive dialect no longer clears the clause it was written for',
+  )
+  // And every registered provider really does declare a dialect that exists — the guard that stops
+  // a new entry joining the registry without saying what it was asked.
+  for (const provider of PROVIDERS) {
+    assert.ok(DIALECTS.some((d) => d.id === provider.dialect), `${provider.id}: unknown dialect`)
+  }
 })
 
 test('--reprompt is refused outside the dialect that holds the record', () => {
@@ -313,7 +373,7 @@ test('an unimplemented backend throws rather than guessing a wire shape', async 
 test('the unimplemented error names the unknowns and leaks no credential', () => {
   let message = ''
   try {
-    managedComputeBackend(providerById('qwen-image-2512')).bodyFor(sampleRequest('x'))
+    managedComputeBackend(providerById('cosmos-3-super')).bodyFor(sampleRequest('x'))
   } catch (err) {
     message = (err as Error).message
   }
@@ -327,9 +387,11 @@ test('the registry describes the models rather than counting them', () => {
   assert.equal(REFERENCE.implemented, true)
   assert.equal(REFERENCE.shipped, true)
   assert.equal(REFERENCE.billing.unit, 'provider image unit')
-  // Deliberately NOT an arity assertion. The comparison was three-way, is two-way because Cosmos
-  // failed to deploy, and will be three-way again — the estate has a 3D/animation gap FLUX cannot
-  // fill. A test pinning the count is how a design gets collapsed back into hardcoded providers.
+  // Deliberately NOT an arity assertion, and that decision has now been tested by events. The
+  // comparison was briefed three-way, ran two-way because Cosmos failed to deploy, and is one-way
+  // since the owner withdrew Qwen — and none of those three states needed an edit here. The estate
+  // has a stated 3D/animation gap FLUX cannot fill, so the count will move again. A test pinning
+  // it is how a design gets collapsed back into hardcoded providers.
   assert.ok(CANDIDATES.length >= 1)
   assert.ok(live().length >= 1)
   for (const candidate of CANDIDATES) {
@@ -342,12 +404,15 @@ test('the registry describes the models rather than counting them', () => {
 })
 
 test('the managed wire facts that were measured, pinned', () => {
-  const qwen = providerById('qwen-image-2512')
-  // Qwen turned out to serve on an OpenAI-shaped images route, not under /managed-deployments/.
-  assert.equal(qwen.route, '/openai/v1/images/generations')
+  // These are facts about the Managed Compute HOST, not about either model that has been on it,
+  // which is why they survive the removal of the Qwen deployment: the next challenger lands on the
+  // same route, the same header and the same deployment-name rule, and every line below cost a
+  // real request to learn.
+  const cosmos = providerById('cosmos-3-super')
+  assert.equal(cosmos.route, '/managed-deployments/{deployment}/v1/chat/completions')
   assert.equal(
-    scoringUri({ baseUrl: 'https://h.example/', apiKey: 'x', deployment: qwen.deployment!, route: qwen.route! }),
-    'https://h.example/openai/v1/images/generations',
+    scoringUri({ baseUrl: 'https://h.example/', apiKey: 'x', deployment: cosmos.deployment!, route: cosmos.route! }),
+    'https://h.example/managed-deployments/nvidia--cosmos3-super/v1/chat/completions',
   )
   // `api-key`, never Bearer — Bearer is a measured 401 on that host. Asserted on the object the
   // code sends rather than by grepping the source, so a comment cannot fail the build.
@@ -356,10 +421,13 @@ test('the managed wire facts that were measured, pinned', () => {
   assert.equal(headers['authorization'], undefined)
   // `model` is required in the body and its value is the DEPLOYMENT name, not the catalogue name.
   assert.equal(MODEL_FIELD, 'model')
-  assert.equal(modelValueFor({ baseUrl: '', apiKey: '', deployment: 'qwen--qwen-image-2512', route: '' }), 'qwen--qwen-image-2512')
-  // Still true on the images route: `model` carries the deployment name, not the catalogue name.
+  assert.equal(
+    modelValueFor({ baseUrl: '', apiKey: '', deployment: 'nvidia--cosmos3-super', route: '' }),
+    'nvidia--cosmos3-super',
+  )
   // The near miss: the natural spelling of the Cosmos deployment is a measured 404.
-  assert.equal(providerById('cosmos-3-super').deployment, 'nvidia--cosmos3-super')
+  assert.equal(cosmos.deployment, 'nvidia--cosmos3-super')
+  assert.notEqual(cosmos.deployment, 'nvidia--cosmos-3-super')
 })
 
 test('a warming 500 is not a failure, and workers share one wait', async () => {
@@ -389,79 +457,77 @@ test('a warming 500 is not a failure, and workers share one wait', async () => {
   resetWarmingGate()
 })
 
-test('the Qwen envelope carries the prompt verbatim and transposes the size', () => {
-  const qwen = providerById('qwen-image-2512')
-  assert.equal(qwen.adapter, 'foundry-openai-images')
-  assert.equal(qwen.implemented, true)
-  const backend = openAiImagesBackend(qwen, {
-    baseUrl: 'https://h.example',
-    apiKey: 'k',
-    deployment: 'qwen--qwen-image-2512',
-    route: '/openai/v1/images/generations',
-  })
-  const prompt = 'first paragraph\n\nthe name is "Forge Trade" — accent #2a9e93\n\nlast paragraph'
-  const body = backend.bodyFor({
-    prompt,
-    spec: { kind: 'wordmark', width: 1024, height: 384, format: 'png' },
-    requestWidth: 1024,
-    requestHeight: 384,
-    kitName: 'Forge Trade',
-    accent: '#2a9e93',
-  })
-
-  // Parity: untouched, un-prefixed, un-truncated.
-  assert.equal(body['prompt'], prompt)
-  assert.equal(body['model'], 'qwen--qwen-image-2512')
-  // Required; the OpenAI default `url` is a measured 400 from the model itself.
-  assert.equal(body['response_format'], 'b64_json')
-  assert.equal(body['n'], 1)
-
-  // THE TRAP. Asking this endpoint for 1024x384 delivers 384x1024 while reporting 1024x384, so
-  // the envelope asks for the transpose. A square probe cannot see this — which is how it survived
-  // a careful handover — and every wordmark, OG card and banner in the estate is non-square.
-  assert.equal(body['size'], '384x1024')
-  assert.equal(sizeParamFor(1280, 640), '640x1280')
-  assert.equal(sizeParamFor(512, 512), '512x512', 'squares are unaffected, which is why it hides')
-
-  // width/height are a measured `unrecognized_request_argument` here; the reference provider is
-  // the exact mirror image, taking those and ignoring `size`.
-  assert.equal(body['width'], undefined)
-  assert.equal(body['height'], undefined)
-  assert.deepEqual(
-    Object.keys(body).sort(),
-    ['model', 'n', 'prompt', 'response_format', 'size'],
-    'the body grew a field; if it is prompt-adjacent, parity is at risk',
-  )
-})
-
-test('the two implemented backends are given the identical prompt for one asset', () => {
-  // The end-to-end version of the parity property: same asset, both live providers, compare the
-  // strings that reach the wire rather than the strings that go into the builders.
-  const qwen = providerById('qwen-image-2512')
+/**
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * WHAT REPLACED THE TWO QWEN ENVELOPE TESTS, AND WHY IT IS NOT A REDUCTION
+ *
+ * Two tests were deleted with the Qwen deployment. One asserted that its OpenAI-images envelope
+ * carried the prompt verbatim and that `sizeParamFor` transposed the requested size; the other put
+ * both live backends side by side and compared the strings that reached the wire.
+ *
+ * The transposition half pinned a WORKAROUND for one vendor's bug, in an endpoint that no longer
+ * exists. A test that pins a deleted workaround is a test that can only ever fail for the wrong
+ * reason, and keeping it would have been keeping a green tick rather than a check.
+ *
+ * The property both of them really protected is not "we transpose". It is **"a delivered image is
+ * the size that was asked for, measured on the bytes"** and **"the prompt reaches the wire
+ * untouched"**. Both survive here, and neither is specific to any model: `generate.ts`'s
+ * `TransposedDeliveryError` still refuses to keep a rotated file for ANY provider, and
+ * `verify.py`'s cross-set check still re-measures every non-square asset. Those two are blind on a
+ * square, so the size of the population they can see is pinned below — a suite that stopped
+ * knowing how many non-square assets exist would not notice the day that number went to zero.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+test('the reference envelope carries the prompt verbatim', () => {
+  // The end-to-end form of the parity property: compare the string that reaches the WIRE against
+  // the string handed in, not two builders against each other. A backend that prepended a system
+  // preamble, appended a negative prompt or truncated to a token budget fails here.
   const prompt = 'a prompt with\n\nparagraphs and "quotes" and — dashes'
-  const request = {
-    prompt,
-    spec: { kind: 'mark' as const, width: 1024, height: 1024, format: 'png' as const },
-    requestWidth: 1024,
-    requestHeight: 1024,
-    kitName: 'x',
-    accent: '#e8622c',
-  }
-  const qwenBody = openAiImagesBackend(qwen, {
-    baseUrl: 'https://h.example',
-    apiKey: 'k',
-    deployment: qwen.deployment!,
-    route: qwen.route!,
-  }).bodyFor(request)
-  const fluxBody = referenceBackend(REFERENCE, {
+  const body = referenceBackend(REFERENCE, {
     endpoint: 'https://f.example',
     apiKey: 'k',
     imagePath: '/p',
     model: 'FLUX.2-pro',
     fallbackModel: '',
-  }).bodyFor(request)
-  assert.equal(qwenBody['prompt'], fluxBody['prompt'])
-  assert.equal(qwenBody['prompt'], prompt)
+  }).bodyFor({
+    prompt,
+    spec: { kind: 'mark', width: 1024, height: 1024, format: 'png' },
+    requestWidth: 1024,
+    requestHeight: 1024,
+    kitName: 'x',
+    accent: '#e8622c',
+  })
+  assert.equal(body['prompt'], prompt)
+})
+
+test('the reference asks for the size it wants, and the non-square population is pinned', () => {
+  const backend = referenceBackend(REFERENCE, {
+    endpoint: 'https://f.example',
+    apiKey: 'k',
+    imagePath: '/p',
+    model: 'FLUX.2-pro',
+    fallbackModel: '',
+  })
+
+  const nonSquare = plannedAssets().filter((a) => a.width !== a.height)
+  // Not a decoration. `TransposedDeliveryError` and verify.py's delivered-size check are both blind
+  // on a square, so the number of non-square assets IS the size of the population they can see.
+  assert.ok(nonSquare.length > 0, 'no non-square asset is planned, so nothing can observe a rotation')
+
+  for (const planned of nonSquare.slice(0, 8)) {
+    const body = backend.bodyFor({
+      prompt: 'x',
+      spec: { kind: 'banner', width: planned.width, height: planned.height, format: 'png' },
+      requestWidth: planned.width,
+      requestHeight: planned.height,
+      kitName: planned.name,
+      accent: planned.accent,
+    })
+    // Width and height as themselves. The reference provider takes exactly these and ignores
+    // `size`; nothing in this repository transposes anything any more.
+    assert.equal(body['width'], planned.width)
+    assert.equal(body['height'], planned.height)
+  }
 })
 
 test('c2pa is read off the bytes, never asserted', () => {

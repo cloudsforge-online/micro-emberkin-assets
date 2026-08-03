@@ -283,7 +283,11 @@ def main(argv: list[str]) -> int:
         entry["postProcessing"] = steps
 
     if not dry_run:
-        MANIFEST.write_text(json.dumps(document, indent=2) + "\n")
+        # `ensure_ascii=False`, to match generate.ts's JSON.stringify. Without it this tool
+        # re-escapes every non-ASCII character generate.ts wrote raw, so MANIFEST.json
+        # oscillates between two byte-different encodings of identical data depending on
+        # which tool touched it last, and every run shows a diff nobody made.
+        MANIFEST.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n")
 
     # The evidence that the step was needed at all: what FLUX actually delivered, and how far
     # apart the delivered grounds were from each other. One number is a curiosity; a RANGE is the

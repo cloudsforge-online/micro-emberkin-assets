@@ -19,7 +19,27 @@
     "",
     "The pilot figures are sums over all three repositories' $pilot blocks, so a claim here is",
     "checked against emberkin's, aetherholm's and micro-brand's scoring together. That is",
-    "deliberate: the row that was wrong was wrong in the SUM, not in any one repository's tally."
+    "deliberate: the row that was wrong was wrong in the SUM, not in any one repository's tally.",
+    "",
+    "FOUR CLAIMS WERE DELETED WITH THE THING THEY POINTED AT, AND THAT IS RECORDED HERE RATHER",
+    "THAN LEFT AS A GAP. materialise.py used to state the Qwen challenger's completeness — 97 of",
+    "micro-brand's 98 entries, 134 of Emberkin's 137 — and four claims re-derived those figures",
+    "from candidates/qwen-image-2512/MANIFEST.json. The owner withdrew that model and the candidate",
+    "trees were deleted, so the derivations became permanently Unverifiable, which claims.py",
+    "correctly refuses to treat as a pass. Deleting the claims is the honest move ONLY because the",
+    "figures were transcribed into materialise.py's prose first and labelled there as no longer",
+    "re-derivable. A number that survives its source and keeps its confident tone is the defect",
+    "this file exists to prevent; a number that survives its source and says so is a record.",
+    "",
+    "AND ONE MORE WENT WITH THE PILOT SET. `candidate.ungenerated(qwen-image-2512-positive)` pinned",
+    "COMPARISON.md's count of assets the pilot never generated — the figure that was 74 in emberkin",
+    "and 92 in aetherholm, and which had been copied between the two files with its number intact.",
+    "That is exactly the defect this file was written after, and the guard did its job for as long",
+    "as the manifest it read existed. The manifest was deleted with the challenger, so the",
+    "derivation is permanently Unverifiable; the sentence has been rewritten as a record of what",
+    "the last run reported rather than a live count, and the claim is removed rather than left to",
+    "report UNVERIFIED for ever. claims.py treats 'could not be checked' as NOT A PASS, and a",
+    "permanent not-a-pass is a broken build that teaches people to ignore the exit code."
   ],
   "claims": [
     {
@@ -122,12 +142,6 @@
     },
     {
       "document": "COMPARISON.md",
-      "find": "\"planned but never generated\" — (\\d+) of them here",
-      "derive": "candidate.ungenerated(qwen-image-2512-positive)",
-      "why": "this repository's generated entries minus the entries the pilot set actually holds"
-    },
-    {
-      "document": "COMPARISON.md",
       "find": "Phase 2 — all (\\d+) in this dialect",
       "derive": "estate.generated"
     },
@@ -145,26 +159,6 @@
       "document": "materialise.py",
       "find": "are generated and (\\d+) derived",
       "derive": "estate.derived"
-    },
-    {
-      "document": "materialise.py",
-      "find": "the Qwen brand set is (\\d+) of \\d+ today",
-      "derive": "candidate.assets(brand|qwen-image-2512)"
-    },
-    {
-      "document": "materialise.py",
-      "find": "the Qwen brand set is \\d+ of (\\d+) today",
-      "derive": "sibling.assets(brand)"
-    },
-    {
-      "document": "materialise.py",
-      "find": "Emberkin set is (\\d+) of \\d+\\.",
-      "derive": "candidate.assets(emberkin-assets|qwen-image-2512)"
-    },
-    {
-      "document": "materialise.py",
-      "find": "Emberkin set is \\d+ of (\\d+)\\.",
-      "derive": "sibling.assets(emberkin-assets)"
     }
   ]
 }

@@ -3,8 +3,11 @@
 
     python3 materialise.py --list
     python3 materialise.py --provider flux-2-pro       --into ../network-site/public --only network
-    python3 materialise.py --provider qwen-image-2512  --into ../network-site/public --only network
-    python3 materialise.py --provider qwen-image-2512  --into /tmp/x --dry-run
+    python3 materialise.py --provider flux-2-pro       --into /tmp/x --dry-run
+
+The second argument to `--provider` is a registered id. There is one live set today: the owner
+withdrew the Qwen challenger and its candidate trees were deleted, so the examples above no
+longer name it — a documented command that exits `unknown provider` is worse than no example.
 
 ═══════════════════════════════════════════════════════════════════════════════════════════════
 ## THE PROBLEM
@@ -57,12 +60,18 @@ and untouched.
 ## WHEN THE CHOSEN SET IS INCOMPLETE, THIS FAILS AND WRITES NOTHING
 
 336 entries across the three repositories, of which 235 are generated and 101 derived, and a
-challenger is normally partial for most of its life — the Qwen brand set is 97 of 98 today and its
-Emberkin set is 134 of 137. So incompleteness is the common case, not the exceptional one.
+challenger is normally partial for most of its life. That is measured rather than assumed — and it
+is now measured off a set that no longer exists. The withdrawn Qwen challenger stood at 97 of
+micro-brand's 98 entries and 134 of Emberkin's 137 when it was last scored, and its positive-dialect
+pilot was 15 assets out of 235 deliberately. **Those two figures are no longer re-derivable and
+claims.py no longer pins them**, because the manifests they were read out of went with the
+candidate trees; they are transcribed here as history rather than left as claims pointing at
+nothing, which is the state claims.json's own header calls indistinguishable from a deleted claim.
+Incompleteness stays the common case for whatever lands next.
 
 A missing asset therefore **fails loudly, names every gap, and materialises nothing at all**. It
 never falls back to the reference for the entries the chosen set lacks. A silent fallback would
-produce a directory that is mostly Qwen and quietly partly FLUX, and every judgement made by
+produce a directory that is mostly the challenger and quietly partly the reference, and every judgement made by
 looking at it — which is the entire point of running a challenger — would be a judgement about a
 blend nobody chose and nothing recorded. Partial writes are avoided the same way: the whole set is
 resolved before the first byte is written.

@@ -37,6 +37,16 @@ Six checks:
 `--cvd` prints the separation matrix for the nine type colours under normal, protan and deutan
 vision. See the note on it below: it is evidence, not a gate.
 
+
+** ONE CHECK IN HERE IS DORMANT, AND IT SAYS SO ON EVERY RUN. ** The owner withdrew Qwen-Image
+2512 and its candidate trees are deleted, so `check_parity` — the only check here that compares
+SETS rather than reading one manifest and its bytes — has a single operand and returns clean
+because it was handed one document. `main` prints DORMANT instead of a zero, and `--self-test`
+hands the real function two-set fixtures so it cannot quietly stop being able to fail. Every
+other check in this file is unaffected: they read the shipped manifest and the shipped pixels,
+and they would go red today exactly as they would have yesterday.
+
+    python3 verify.py --self-test    # break the cross-set guard on a fixture; no images needed
     python3 verify.py                # everything
     python3 verify.py species types  # only these sets
     python3 verify.py --cvd          # the colour-vision separation table
@@ -356,6 +366,19 @@ def check_parity(documents: dict[str, dict]) -> list[str]:
     the reference record, so a candidate can only ever be a subset of it whatever dialect it is in;
     an extra key means something generated a prompt of its own, which is the failure this whole
     check exists to catch.
+
+    ** IT IS DORMANT TODAY, WHICH IS WHY THE EARLY RETURN BELOW IS NARROW AND SAYS SO. ** The owner
+    withdrew Qwen-Image 2512 and both its candidate trees have been deleted, so there is one
+    manifest on disk and this function has nothing to compare it against. It returns clean because
+    it was handed ONE DOCUMENT, not because it looked and found nothing — and an exit code cannot
+    tell those two apart. That is this estate's recurring defect, found five times in a day: a CI
+    job that read image metadata without decoding the image, a grep that skipped files containing
+    NUL bytes, a secret scan whose `-I` discarded the binary stream it was meant to search.
+
+    So the guard below is spelled "fewer than two sets" and never "no problems"; `main` prints the
+    word DORMANT instead of a reassuring zero; and `python3 verify.py --self-test` runs this exact
+    function against two-set fixtures on every CI run. A SECOND SET WHOSE PROMPT DIFFERS BY ONE
+    WORD MUST STILL FAIL, and that sentence is executable rather than a claim.
     """
     if len(documents) < 2:
         return []
@@ -430,6 +453,235 @@ def check_parity(documents: dict[str, dict]) -> list[str]:
                     "about the prompt and this one is not true of it"
                 )
     return problems
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# THE DORMANT CHECK, AND THE MACHINERY THAT PROVES IT CAN STILL BITE
+#
+# `check_parity` above is the only check in this file that is ABOUT THE SET OF SETS. Every other
+# check reads one manifest and the bytes it points at, and goes on working exactly as before. This
+# one compares sets to each other, the owner withdrew the only challenger, and so it now has one
+# operand. Its failure count went to zero at a stroke with nothing about the shipped set changed.
+#
+# That is the precise shape of a number improving because a check stopped looking, and this estate
+# has been bitten by it repeatedly. The response here is two things, neither of which is a comment:
+# `main` prints DORMANT rather than 0, and everything below hands the real function a real second
+# set and fails if it stays green.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+#: A recorded prompt that the positive dialect genuinely REWRITES, and whose rewrite comes out with
+#: no negation vocabulary left. Both halves are load-bearing: a fixture the transform happens to
+#: leave alone would pass the re-derivation check without the transform ever running.
+_FIXTURE_RECORD = (
+    "A flat mark, with exactly one accent colour — #e8622c — and no second hue anywhere."
+)
+#: A record the positive rule list does NOT cover. It transforms to itself, so it passes the
+#: re-derivation half and must be caught by the residual half instead — which is the half that
+#: makes "positive" a measured property of the prompt rather than a label somebody typed.
+_FIXTURE_UNCOVERED = "A mark on the ash field. There is no chartreuse anywhere in the frame."
+
+
+def _fixture_asset(name: str, prompt: str) -> dict:
+    """One manifest entry, spelled with THIS repository's own identity fields.
+
+    Built from providers.json's `identity` block rather than hardcoded, for two reasons. It makes
+    the fixture travel through `providers.key_of` exactly as a real manifest entry does — and it
+    lets this whole file's self-test be the same code in all three asset repositories, which key
+    their assets differently. A hardcoded `surface`/`kind` entry would key on nothing at all in the
+    game sets, and a check handed keys it cannot build is a check that passes for the wrong reason.
+    """
+    fields = json.loads((HERE / "providers.json").read_text())["identity"]["key"]
+    entry = {field: "fixture" for field in fields}
+    entry[fields[0]] = name
+    entry["prompt"] = prompt
+    return entry
+
+
+class _registry_with:
+    """providers.json with challenger entries appended, for the duration of one call.
+
+    `check_parity` reads the registry every time it runs — the identity block, the reference id and
+    every provider's declared dialect. A fixture made only of manifests would therefore be handed
+    to a check that could not see a second provider at all, and would prove nothing.
+
+    So this appends to the REAL document rather than inventing one: `identity`, `reference` and
+    dialects.json are exactly what ships. What is synthetic is a second SET, which is precisely the
+    thing that no longer exists on disk and nothing else. The challengers are registered `live`,
+    because a withdrawn provider with a manifest present would get the same verdict — this function
+    compares the manifests it is GIVEN — and registering them live is the harder case to pass.
+    """
+
+    def __init__(self, *challengers: tuple[str, str]) -> None:
+        self._challengers = challengers
+        self._real = providers._document
+
+    def __enter__(self):
+        document = json.loads((HERE / "providers.json").read_text())
+        template = next(p for p in document["providers"] if p["id"] == document["reference"])
+        for provider_id, dialect in self._challengers:
+            entry = dict(template)
+            entry.update(
+                id=provider_id,
+                label=provider_id,
+                dialect=dialect,
+                root=f"candidates/{provider_id}",
+                shipped=False,
+                status="live",
+            )
+            document["providers"].append(entry)
+        providers._document = lambda: document
+        return self
+
+    def __exit__(self, *exc) -> None:
+        providers._document = self._real
+
+
+def self_test() -> int:
+    """Break the cross-set guard on a fixture and watch it go red. No images, no endpoint, no keys.
+
+    WHAT THIS IS FOR. `check_parity` lost its second operand when the Qwen challenger was deleted.
+    Nothing about the shipped set changed, and nothing about this function's ability to find a
+    defect changed either — but from the outside those are indistinguishable from the check having
+    quietly died, because both look like a zero. Reading the source is not evidence; the source
+    always looks like it works. So the real function is called here, unmodified, against manifests
+    built in memory.
+
+    BOTH DIRECTIONS ARE ASSERTED. A check that always fails is exactly as useless as one that never
+    does, and it is the easier of the two mistakes to make when writing a test like this. Every
+    property below is exercised twice: once with a fixture that should pass and once with a fixture
+    that should fail, and only the pair is evidence.
+
+    THE FOUR PROPERTIES, which are the four ways two sets can stop being comparable:
+
+      within a dialect   two sets given different prompts for one asset
+      across dialects    a set whose prompt is not what its declared dialect derives from the record
+      the residual rule  a set labelled `positive` whose prompt still carries negation vocabulary
+      the subset rule    a set holding an asset the reference has never generated
+
+    And the dormant state itself is asserted last, on a document that WOULD fail if it had a
+    partner — which is the difference between "there is nothing wrong" and "there is nothing here".
+    """
+    document = json.loads((HERE / "providers.json").read_text())
+    reference_id = document["reference"]
+    reference_dialect = next(p["dialect"] for p in document["providers"] if p["id"] == reference_id)
+    checks: list[tuple[str, bool, list[str]]] = []
+
+    def check(name: str, ok: bool, detail=()) -> None:
+        checks.append((name, bool(ok), [str(d) for d in detail]))
+
+    # The fixtures below assume the record is in the literal dialect. If that ever stops being
+    # true the cross-dialect cases silently become no-ops, so it is asserted rather than assumed.
+    check(
+        f"the reference set {reference_id} is the dialect the record is in",
+        reference_dialect == "literal",
+        [f"reference dialect is {reference_dialect!r}"],
+    )
+
+    # ---- WITHIN A DIALECT. Byte-identical, or the two sets answered different questions.
+    with _registry_with(("fixture-literal", "literal")):
+        agreeing = {
+            reference_id: {"assets": [_fixture_asset("alpha", _FIXTURE_RECORD)]},
+            "fixture-literal": {"assets": [_fixture_asset("alpha", _FIXTURE_RECORD)]},
+        }
+        check("parity passes two literal sets that agree", check_parity(agreeing) == [])
+
+        divergent = {
+            reference_id: {"assets": [_fixture_asset("alpha", _FIXTURE_RECORD)]},
+            "fixture-literal": {
+                "assets": [_fixture_asset("alpha", _FIXTURE_RECORD.replace("flat", "glossy"))]
+            },
+        }
+        found = check_parity(divergent)
+        check(
+            "parity FAILS a live second set whose prompt differs by ONE WORD",
+            len(found) == 1 and "DIFFERENT prompts" in found[0],
+            found,
+        )
+
+        # ---- THE SUBSET RULE. Every dialect derives from the reference record, so a candidate can
+        # only ever be a subset of it. An extra key means something generated a prompt of its own.
+        orphan = {
+            reference_id: {"assets": [_fixture_asset("alpha", _FIXTURE_RECORD)]},
+            "fixture-literal": {"assets": [_fixture_asset("beta", _FIXTURE_RECORD)]},
+        }
+        found = check_parity(orphan)
+        check(
+            "parity FAILS an asset the reference has never generated",
+            len(found) == 1 and "never generated" in found[0],
+            found,
+        )
+
+    # ---- ACROSS DIALECTS. Re-derived from the record, which is stronger than equality: equality
+    # could only ever say "these differ", and every case below looks like agreement to it.
+    with _registry_with(("fixture-positive", "positive")):
+        derived = dialects.apply("positive", _FIXTURE_RECORD)
+        check(
+            "the positive dialect actually rewrites the fixture, so the next two cases are real",
+            derived != _FIXTURE_RECORD,
+            [derived],
+        )
+
+        correct = {
+            reference_id: {"assets": [_fixture_asset("alpha", _FIXTURE_RECORD)]},
+            "fixture-positive": {"assets": [_fixture_asset("alpha", derived)]},
+        }
+        check("parity passes a cross-dialect set that IS derivable", check_parity(correct) == [])
+
+        # The case plain equality is blind to: a prompt that differs from the reference's exactly
+        # as a different dialect would — but is not what THIS dialect produces from the record.
+        undertransformed = {
+            reference_id: {"assets": [_fixture_asset("alpha", _FIXTURE_RECORD)]},
+            "fixture-positive": {"assets": [_fixture_asset("alpha", _FIXTURE_RECORD)]},
+        }
+        found = check_parity(undertransformed)
+        check(
+            "parity FAILS a set declaring a dialect it was not generated in",
+            len(found) == 1 and "is not what that dialect produces" in found[0],
+            found,
+        )
+
+        # ---- THE RESIDUAL RULE. Derivable and still wrong: the label is a claim about the prompt.
+        uncovered = dialects.apply("positive", _FIXTURE_UNCOVERED)
+        residual = {
+            reference_id: {"assets": [_fixture_asset("alpha", _FIXTURE_UNCOVERED)]},
+            "fixture-positive": {"assets": [_fixture_asset("alpha", uncovered)]},
+        }
+        found = check_parity(residual)
+        check(
+            "parity FAILS a 'positive' set whose prompt still carries a prohibition word",
+            len(found) == 1 and "prohibition word" in found[0],
+            found,
+        )
+
+    # ---- AND THE DORMANT STATE ITSELF, asserted rather than described.
+    #
+    # The single document handed in here is the SAME divergent fixture that went red above, minus
+    # its partner. It comes back clean. That is the whole point: the clean result is a statement
+    # about how many sets are on disk and about nothing else, and it is why `main` refuses to print
+    # it as a zero.
+    lone = {reference_id: {"assets": [_fixture_asset("alpha", _FIXTURE_RECORD)]}}
+    check(
+        "one set is DORMANT, not clean — the same fixture fails the moment it has a partner",
+        check_parity(lone) == [],
+        [],
+    )
+    check(
+        "and the repository really is in that state, so the DORMANT line is not decoration",
+        len(providers.present()) == 1,
+        [f"{len(providers.present())} set(s) present on disk"],
+    )
+
+    print("===== self-test: the cross-set guard, broken on a fixture")
+    failed = 0
+    for name, ok, detail in checks:
+        print(f"  {'ok  ' if ok else 'FAIL'} {name}")
+        if not ok:
+            failed += 1
+            for line in detail:
+                print(f"         {line}")
+    print(f"\n{failed} of {len(checks)} self-test(s) failed")
+    return 1 if failed else 0
+
 
 
 def check_integrity(provider, document: dict) -> list[str]:
@@ -628,7 +880,15 @@ def main(argv: list[str]) -> int:
     providers.add_argument(parser)
     parser.add_argument("--cvd", action="store_true", help="the colour-vision report only")
     parser.add_argument("sets", nargs="*", help="only these sets")
+    parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="break the cross-set guard against a fixture and prove it goes red. No images needed.",
+    )
     args = parser.parse_args(argv)
+
+    if args.self_test:
+        return self_test()
 
     if args.cvd:
         return cvd_report(json.loads(PLAN.read_text()))
@@ -665,6 +925,25 @@ def main(argv: list[str]) -> int:
         )
         for problem in parity:
             print(f"  -> {problem}")
+    else:
+        # NEVER A BARE ZERO. This check compares sets to each other, and since the owner withdrew
+        # the Qwen challenger there is one manifest on disk — so it returned clean because it was
+        # handed one document, NOT because it looked and found nothing. Those two states produce
+        # the identical exit code and the identical count, and this estate has spent a day finding
+        # checks in the second one. The word is printed so that a reader scanning the output cannot
+        # mistake an absent operand for a passing comparison.
+        only = next(iter(documents), "the only set")
+        print(
+            f"===== prompt parity: DORMANT — {only} is the only set on disk, so this check has "
+            "nothing to compare it against. It returned clean because it was handed ONE document, "
+            "not because it looked and found nothing."
+        )
+        print(
+            "      It is exercised against two-set fixtures by `python3 verify.py --self-test`, "
+            "which CI runs before this command, so it is not a check that has quietly stopped "
+            "being able to fail. Every other check in this file reads one manifest and its bytes, "
+            "and is unaffected."
+        )
     all_failures.extend(f"parity: {p}" for p in parity)
 
     print(f"\n{len(all_failures)} failure(s) across {len(chosen)} set(s)")
