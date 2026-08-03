@@ -57,6 +57,7 @@ import {
   type ImageRequest,
 } from '../studio/src/backend.ts'
 import type { AssetSpec } from '../studio/src/specs.ts'
+import type { AttemptOutcome } from '../studio/src/backend.ts'
 
 import { ProviderWithdrawnError, type Provider } from './providers.ts'
 
@@ -429,6 +430,213 @@ export function managedComputeBackend(
   }
 }
 
+
+/* ------------------------------------------------------------------ foundry openai-images */
+
+/**
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * **THE MEASURED CONTRACT for Qwen-Image 2512.** Every line re-verified against the live endpoint,
+ * and the last of them was found by doing that rather than trusting the handover.
+ *
+ *     POST {FOUNDRY3_BASE_URL}/openai/v1/images/generations
+ *     api-key: <FOUNDRY3_API_KEY>                       (Bearer is 401)
+ *     {"model":"qwen--qwen-image-2512","prompt":"…","response_format":"b64_json","n":1,"size":"HxW"}
+ *
+ *     200 {background:null, created, data:[{b64_json}], output_format:"png",
+ *          quality:null, size:"1024x1024", usage:null}
+ *
+ * 1. **Not `/managed-deployments/…`.** That route is real, on a different host, and is what this
+ *    file's earlier stub was written against. This is an OpenAI-shaped images route instead.
+ * 2. **`response_format` is required and must be `b64_json`.** The OpenAI default, `url`, is a
+ *    400: "`response_format='url'` is not supported". That error comes from the model itself.
+ * 3. **`width`/`height` are rejected** — `unrecognized_request_argument`. The reference provider
+ *    takes exactly those and ignores `size`; this one is the mirror image.
+ * 4. **`size` IS TRANSPOSED, and it lies about it.** Asking for `1024x384` returns a **384x1024**
+ *    image while the response still reports `size: "1024x384"`. Verified in both directions across
+ *    four aspect ratios:
+ *
+ *        asked 1024x384 → 384x1024      asked 1280x640 → 640x1280
+ *        asked 384x1024 → 1024x384      asked 640x1280 → 1280x640
+ *
+ *    **A square probe cannot see this**, which is exactly why it survived a careful handover: the
+ *    one image generated to establish the contract was 1024x1024. Every non-square asset in this
+ *    estate — wordmarks, OG cards, social banners, key art — would have come back rotated, and the
+ *    only thing that would have caught it downstream is `verify.py`'s dimensions check, after the
+ *    whole set was paid for.
+ *
+ *    `bodyFor` therefore sends `height x width`. That is a correction in the ENVELOPE. It touches
+ *    nothing about the prompt, which is what `parity.test.ts` protects.
+ * 5. **Exact sizes are honoured** — no flooring to a multiple of 16, unlike the reference. The
+ *    round-up in `requestSizeFor` is kept anyway, so a candidate produces the same declared sizes
+ *    as the reference and the two sets stay comparable asset for asset.
+ * 6. **No cost signal.** `background`, `quality` and `usage` all return null, so there is no
+ *    per-image number and `providerCostUnits` stays null. That null is load-bearing: this
+ *    deployment bills per hour of existence and inventing a per-image figure would be a lie.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/** Required, and the only accepted value. See trap 2. */
+export const RESPONSE_FORMAT = 'b64_json'
+
+/**
+ * The size string to send in order to receive `width x height`.
+ *
+ * Transposed deliberately. See trap 4 — this is a bug at the far end that is invisible on square
+ * assets, and it is corrected here rather than by post-rotating the delivered bytes, because
+ * rotating a generated image is a second lossy operation on artwork the model composed for the
+ * frame it thought it had.
+ */
+export const sizeParamFor = (width: number, height: number): string => `${height}x${width}`
+
+export function openAiImagesBody(
+  deployment: string,
+  request: GenerationRequest,
+): Record<string, unknown> {
+  return {
+    model: deployment,
+    // Verbatim. The one field the whole comparison depends on.
+    prompt: request.prompt,
+    response_format: RESPONSE_FORMAT,
+    n: 1,
+    size: sizeParamFor(request.requestWidth, request.requestHeight),
+  }
+}
+
+interface OpenAiImagesResponse {
+  readonly data?: ReadonlyArray<{ readonly b64_json?: unknown }>
+  readonly size?: unknown
+  readonly output_format?: unknown
+  readonly usage?: unknown
+}
+
+/**
+ * Qwen-Image 2512 on Azure AI Foundry, over the OpenAI images route.
+ *
+ * Retries transport faults and 5xx, and waits out a warming container without spending the asset's
+ * retry budget on it. A 400 is not retried: it is the request being wrong, and it is wrong the same
+ * way every time.
+ */
+export function openAiImagesBackend(
+  provider: Provider,
+  config: ManagedComputeConfig,
+  deps: { readonly fetch?: typeof globalThis.fetch; readonly log?: (m: string) => void } = {},
+): ProviderBackend {
+  const fetchImpl = deps.fetch ?? globalThis.fetch
+  const log = deps.log ?? ((message: string) => process.stdout.write(`${message}\n`))
+  const url = scoringUri(config)
+
+  return {
+    provider,
+    bodyFor: (request) => openAiImagesBody(config.deployment, request),
+
+    async generate(request, signal) {
+      const body = openAiImagesBody(config.deployment, request)
+      const attempts: Attempt[] = []
+      const MAX = 3
+
+      for (let go = 0; go <= MAX; go += 1) {
+        const startedAt = Date.now()
+        const record = (outcome: AttemptOutcome, status: number | null, detail: string): void => {
+          attempts.push({
+            backend: 'flux',
+            model: config.deployment,
+            outcome,
+            status,
+            detail: redact(detail),
+            durationMs: Date.now() - startedAt,
+          })
+        }
+
+        let response: Response
+        try {
+          response = await fetchImpl(url, {
+            method: 'POST',
+            headers: managedHeaders(config),
+            body: JSON.stringify(body),
+            signal,
+          })
+        } catch (err) {
+          record('transport_error', null, err instanceof Error ? err.message : String(err))
+          if (go === MAX) break
+          await new Promise((r) => setTimeout(r, 2_000 * 2 ** go))
+          continue
+        }
+
+        if (!response.ok) {
+          const text = (await response.text().catch(() => '')).slice(0, 2_000)
+          if (isWarming(response.status, text)) {
+            // The deployment, not the request. Does not count as an attempt against the asset, and
+            // every worker shares one poll rather than each hammering a loading container.
+            await awaitWarm(async () => {
+              const again = await fetchImpl(url, {
+                method: 'POST',
+                headers: managedHeaders(config),
+                body: JSON.stringify(body),
+                signal,
+              })
+              return !isWarming(again.status, (await again.text().catch(() => '')).slice(0, 2_000))
+            }, log)
+            go -= 1
+            continue
+          }
+          if (response.status === 401 || response.status === 403) {
+            record('unauthorised', response.status, text)
+            throw new ImageBackendError('unauthorised', 'the endpoint refused the key', attempts)
+          }
+          if (response.status < 500) {
+            // Wrong the same way on every retry — a refusal, or a body this endpoint will not take.
+            record('bad_request', response.status, text)
+            throw new ImageBackendError('bad_request', `the request was refused: ${redact(text)}`, attempts)
+          }
+          record('server_error', response.status, text)
+          if (go === MAX) break
+          await new Promise((r) => setTimeout(r, 2_000 * 2 ** go))
+          continue
+        }
+
+        let parsed: OpenAiImagesResponse
+        try {
+          parsed = (await response.json()) as OpenAiImagesResponse
+        } catch (err) {
+          record('bad_response', 200, err instanceof Error ? err.message : String(err))
+          if (go === MAX) break
+          continue
+        }
+
+        const encoded = parsed.data?.[0]?.b64_json
+        if (typeof encoded !== 'string' || encoded.length === 0) {
+          record('bad_response', 200, 'the endpoint returned no b64_json payload')
+          if (go === MAX) break
+          continue
+        }
+
+        const bytes = Buffer.from(encoded, 'base64')
+        record('ok', 200, 'b64_json')
+        return {
+          bytes,
+          backend: provider.id,
+          model: config.deployment,
+          // Measured on the bytes, never asserted. Observed false on this provider, which is a
+          // disclosure fact worth having rather than a disappointment to hide.
+          c2pa: measureC2pa(bytes),
+          // Null on purpose: `usage` comes back null, so there is no per-image figure and one must
+          // not be invented. This provider bills per deployment-hour.
+          providerCostUnits: null,
+          providerOutputMegapixels: null,
+          seed: null,
+          attempts,
+        }
+      }
+
+      throw new ImageBackendError(
+        'backend_unavailable',
+        `every attempt failed (${attempts.map((a) => `${a.outcome}${a.status ? ` ${a.status}` : ''}`).join(', ')})`,
+        attempts,
+      )
+    },
+  }
+}
+
 /* ------------------------------------------------------------------ the reference backend */
 
 /**
@@ -492,6 +700,20 @@ export function backendFor(provider: Provider, env: NodeJS.ProcessEnv = process.
 
   const endpoint = read(provider.env['endpoint']).replace(/\/+$/, '')
   const apiKey = read(provider.env['apiKey'])
+
+  if (provider.adapter === 'foundry-openai-images') {
+    if (!endpoint || !apiKey) {
+      throw new Error(
+        `${provider.env['endpoint']} and ${provider.env['apiKey']} must be set in studio/.env.local`,
+      )
+    }
+    return openAiImagesBackend(provider, {
+      baseUrl: endpoint,
+      apiKey,
+      deployment: provider.deployment ?? '',
+      route: provider.route ?? '/openai/v1/images/generations',
+    })
+  }
 
   if (provider.adapter === 'foundry-managed-compute') {
     // A missing credential yields a backend with no config rather than an exception, so that the

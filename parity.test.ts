@@ -32,6 +32,7 @@ import { PROVIDERS, REFERENCE, providerById, live, ProviderWithdrawnError } from
 import {
   backendFor,
   managedComputeBackend,
+  referenceBackend,
   UnimplementedBackendError,
   UNKNOWNS,
   measureC2pa,
@@ -39,6 +40,8 @@ import {
   managedHeaders,
   MODEL_FIELD,
   modelValueFor,
+  openAiImagesBackend,
+  sizeParamFor,
   isWarming,
   awaitWarm,
   resetWarmingGate,
@@ -132,7 +135,7 @@ test('an asset the reference has never generated cannot be generated for a candi
 })
 
 test('an unimplemented backend throws rather than guessing a wire shape', async () => {
-  for (const candidate of CANDIDATES) {
+  for (const candidate of CANDIDATES.filter((p) => p.adapter === 'foundry-managed-compute')) {
     assert.equal(candidate.implemented, false)
     const backend = managedComputeBackend(candidate)
     assert.throws(() => backend.bodyFor(sampleRequest('anything')), UnimplementedBackendError)
@@ -167,7 +170,6 @@ test('the registry describes the models rather than counting them', () => {
   assert.ok(CANDIDATES.length >= 1)
   assert.ok(live().length >= 1)
   for (const candidate of CANDIDATES) {
-    assert.equal(candidate.adapter, 'foundry-managed-compute')
     assert.equal(candidate.billing.unit, 'deployment hour')
     assert.equal(candidate.billing.hourlyRate, null, 'a rate was filled in; check it was measured')
   }
@@ -178,9 +180,11 @@ test('the registry describes the models rather than counting them', () => {
 
 test('the managed wire facts that were measured, pinned', () => {
   const qwen = providerById('qwen-image-2512')
+  // Qwen turned out to serve on an OpenAI-shaped images route, not under /managed-deployments/.
+  assert.equal(qwen.route, '/openai/v1/images/generations')
   assert.equal(
     scoringUri({ baseUrl: 'https://h.example/', apiKey: 'x', deployment: qwen.deployment!, route: qwen.route! }),
-    'https://h.example/managed-deployments/qwen--qwen-image-2512/v1/chat/completions',
+    'https://h.example/openai/v1/images/generations',
   )
   // `api-key`, never Bearer — Bearer is a measured 401 on that host. Asserted on the object the
   // code sends rather than by grepping the source, so a comment cannot fail the build.
@@ -190,6 +194,7 @@ test('the managed wire facts that were measured, pinned', () => {
   // `model` is required in the body and its value is the DEPLOYMENT name, not the catalogue name.
   assert.equal(MODEL_FIELD, 'model')
   assert.equal(modelValueFor({ baseUrl: '', apiKey: '', deployment: 'qwen--qwen-image-2512', route: '' }), 'qwen--qwen-image-2512')
+  // Still true on the images route: `model` carries the deployment name, not the catalogue name.
   // The near miss: the natural spelling of the Cosmos deployment is a measured 404.
   assert.equal(providerById('cosmos-3-super').deployment, 'nvidia--cosmos3-super')
 })
@@ -219,6 +224,81 @@ test('a warming 500 is not a failure, and workers share one wait', async () => {
   assert.equal(polls, 3, 'the endpoint was polled once per worker per wait')
   assert.ok(WARMING.budgetMs > 0)
   resetWarmingGate()
+})
+
+test('the Qwen envelope carries the prompt verbatim and transposes the size', () => {
+  const qwen = providerById('qwen-image-2512')
+  assert.equal(qwen.adapter, 'foundry-openai-images')
+  assert.equal(qwen.implemented, true)
+  const backend = openAiImagesBackend(qwen, {
+    baseUrl: 'https://h.example',
+    apiKey: 'k',
+    deployment: 'qwen--qwen-image-2512',
+    route: '/openai/v1/images/generations',
+  })
+  const prompt = 'first paragraph\n\nthe name is "Forge Trade" — accent #2a9e93\n\nlast paragraph'
+  const body = backend.bodyFor({
+    prompt,
+    spec: { kind: 'wordmark', width: 1024, height: 384, format: 'png' },
+    requestWidth: 1024,
+    requestHeight: 384,
+    kitName: 'Forge Trade',
+    accent: '#2a9e93',
+  })
+
+  // Parity: untouched, un-prefixed, un-truncated.
+  assert.equal(body['prompt'], prompt)
+  assert.equal(body['model'], 'qwen--qwen-image-2512')
+  // Required; the OpenAI default `url` is a measured 400 from the model itself.
+  assert.equal(body['response_format'], 'b64_json')
+  assert.equal(body['n'], 1)
+
+  // THE TRAP. Asking this endpoint for 1024x384 delivers 384x1024 while reporting 1024x384, so
+  // the envelope asks for the transpose. A square probe cannot see this — which is how it survived
+  // a careful handover — and every wordmark, OG card and banner in the estate is non-square.
+  assert.equal(body['size'], '384x1024')
+  assert.equal(sizeParamFor(1280, 640), '640x1280')
+  assert.equal(sizeParamFor(512, 512), '512x512', 'squares are unaffected, which is why it hides')
+
+  // width/height are a measured `unrecognized_request_argument` here; the reference provider is
+  // the exact mirror image, taking those and ignoring `size`.
+  assert.equal(body['width'], undefined)
+  assert.equal(body['height'], undefined)
+  assert.deepEqual(
+    Object.keys(body).sort(),
+    ['model', 'n', 'prompt', 'response_format', 'size'],
+    'the body grew a field; if it is prompt-adjacent, parity is at risk',
+  )
+})
+
+test('the two implemented backends are given the identical prompt for one asset', () => {
+  // The end-to-end version of the parity property: same asset, both live providers, compare the
+  // strings that reach the wire rather than the strings that go into the builders.
+  const qwen = providerById('qwen-image-2512')
+  const prompt = 'a prompt with\n\nparagraphs and "quotes" and — dashes'
+  const request = {
+    prompt,
+    spec: { kind: 'mark' as const, width: 1024, height: 1024, format: 'png' as const },
+    requestWidth: 1024,
+    requestHeight: 1024,
+    kitName: 'x',
+    accent: '#e8622c',
+  }
+  const qwenBody = openAiImagesBackend(qwen, {
+    baseUrl: 'https://h.example',
+    apiKey: 'k',
+    deployment: qwen.deployment!,
+    route: qwen.route!,
+  }).bodyFor(request)
+  const fluxBody = referenceBackend(REFERENCE, {
+    endpoint: 'https://f.example',
+    apiKey: 'k',
+    imagePath: '/p',
+    model: 'FLUX.2-pro',
+    fallbackModel: '',
+  }).bodyFor(request)
+  assert.equal(qwenBody['prompt'], fluxBody['prompt'])
+  assert.equal(qwenBody['prompt'], prompt)
 })
 
 test('c2pa is read off the bytes, never asserted', () => {

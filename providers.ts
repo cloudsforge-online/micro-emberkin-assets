@@ -12,7 +12,12 @@ import { join, resolve } from 'node:path'
 
 const HERE = import.meta.dirname
 
-export type AdapterKind = 'foundry-serverless' | 'foundry-managed-compute'
+export type AdapterKind =
+  | 'foundry-serverless'
+  /** `/managed-deployments/<name>/v1/chat/completions`. Real, on another host; see backends.ts. */
+  | 'foundry-managed-compute'
+  /** `/openai/v1/images/generations`. What Qwen-Image 2512 actually serves on. */
+  | 'foundry-openai-images'
 
 /**
  * Whether a provider can be run against at all.
