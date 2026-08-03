@@ -1,0 +1,23 @@
+{
+  "$scope": "All 9 `types` icons of each set, scored row by row off review/compare/compare-types.png. A complete set rather than a sample: types is nine assets and the sheet shows every one of them beside its counterpart.",
+  "flux-2-pro": {
+    "frame / border / bounding box": 0,
+    "non-flat rendering (3D, bevel, gradient, glow, texture)": 0,
+    "ground not the flat ash field": 0,
+    "idea not recognisable from plan.ts": 0,
+    "recognisable pastiche of an existing artwork": 0
+  },
+  "qwen-image-2512": {
+    "frame / border / bounding box": 9,
+    "non-flat rendering (3D, bevel, gradient, glow, texture)": 9,
+    "ground not the flat ash field": 4,
+    "idea not recognisable from plan.ts": 1,
+    "recognisable pastiche of an existing artwork": 1
+  },
+  "$notes": {
+    "9 of 9": "Qwen framed every single type icon and rendered every one with bevel, glow or photographic texture. The consistency is the point: this is not noise, it is a house style being applied over the brief.",
+    "types/gale": "Qwen's worst single asset in the estate. The brief is a wind glyph; it returned a recursive grid of framed picture-boxes with no wind in it at all.",
+    "types/tide": "Qwen returned a recognisable pastiche of Hokusai's Great Wave rather than a flat wave glyph. Worth flagging beyond aesthetics \u2014 a set of shipped brand assets that quotes a specific famous artwork is a different kind of risk from one that is merely off-style.",
+    "types/stone": "a photoreal boulder in place of a flat glyph."
+  }
+}
