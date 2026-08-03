@@ -7,7 +7,7 @@
 ![split](https://img.shields.io/badge/of%20which-83%20generated%20%C2%B7%2054%20derived-C77DFF)
 ![art](https://img.shields.io/badge/art-FLUX%202%20Pro-0A7CFF)
 
-The 2D art for **Emberkin**, the estate's monster-collecting game: 83 generated images and 51
+The 2D art for **Emberkin**, the estate's monster-collecting game: 83 generated images and 54
 derivatives, every one of them made by **FLUX 2 Pro** on Azure AI Foundry and recorded in
 [MANIFEST.json](MANIFEST.json) with the exact prompt that produced it, the model, the delivered
 size, the checksum, the ground it arrived on, the post-processing applied and the number of times
