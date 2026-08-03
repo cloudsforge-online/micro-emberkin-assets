@@ -527,11 +527,30 @@ interface OpenAiImagesResponse {
 export function openAiImagesBackend(
   provider: Provider,
   config: ManagedComputeConfig,
-  deps: { readonly fetch?: typeof globalThis.fetch; readonly log?: (m: string) => void } = {},
+  deps: {
+    readonly fetch?: typeof globalThis.fetch
+    readonly log?: (m: string) => void
+    /** Ceiling on ONE attempt. See `attemptSignal` below for why this is not the caller's. */
+    readonly deadlineMs?: number
+  } = {},
 ): ProviderBackend {
   const fetchImpl = deps.fetch ?? globalThis.fetch
   const log = deps.log ?? ((message: string) => process.stdout.write(`${message}\n`))
+  const deadlineMs = deps.deadlineMs ?? 120_000
   const url = scoringUri(config)
+
+  /**
+   * The caller's cancellation AND this attempt's own deadline — both, never just the caller's.
+   *
+   * The first version passed the caller's signal straight through. `generateOne` hands it an
+   * `AbortSignal.timeout(300_000)` covering the WHOLE asset, so one hung request would burn the
+   * entire budget and then every retry would abort instantly against an already-fired signal: the
+   * retry loop would look like it ran and would in fact have made no second request. Found by
+   * watching a set sit still for five minutes and asking why, rather than by a test — a real
+   * hang is the only thing that shows it.
+   */
+  const attemptSignal = (outer: AbortSignal): AbortSignal =>
+    AbortSignal.any([outer, AbortSignal.timeout(deadlineMs)])
 
   return {
     provider,
@@ -561,7 +580,7 @@ export function openAiImagesBackend(
             method: 'POST',
             headers: managedHeaders(config),
             body: JSON.stringify(body),
-            signal,
+            signal: attemptSignal(signal),
           })
         } catch (err) {
           record('transport_error', null, err instanceof Error ? err.message : String(err))
@@ -580,7 +599,7 @@ export function openAiImagesBackend(
                 method: 'POST',
                 headers: managedHeaders(config),
                 body: JSON.stringify(body),
-                signal,
+                signal: attemptSignal(signal),
               })
               return !isWarming(again.status, (await again.text().catch(() => '')).slice(0, 2_000))
             }, log)
