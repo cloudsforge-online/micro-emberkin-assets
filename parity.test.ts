@@ -19,7 +19,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 
-import { plannedAssets } from './plan.ts'
+import { plannedAssets, type PlannedAsset } from './plan.ts'
 import { promptFor } from './generate.ts'
 import {
   identityFor,
@@ -27,8 +27,25 @@ import {
   referencePrompts,
   MissingReferencePromptError,
   RepromptNotForCandidateError,
+  RepromptNotForDialectError,
 } from './replay.ts'
-import { PROVIDERS, REFERENCE, providerById, live, ProviderWithdrawnError } from './providers.ts'
+import {
+  PROVIDERS,
+  REFERENCE,
+  providerById,
+  live,
+  inDialect,
+  dialectsInUse,
+  ProviderWithdrawnError,
+} from './providers.ts'
+import {
+  DIALECTS,
+  LITERAL,
+  applyDialect,
+  dialectById,
+  residualNegations,
+  ResidualNegationError,
+} from './dialects.ts'
 import {
   backendFor,
   managedComputeBackend,
@@ -64,23 +81,159 @@ const sampleRequest = (prompt: string): GenerationRequest => ({
   accent: '#e8622c',
 })
 
-test('every provider is given the same prompt for the same asset', () => {
+const sendable = (id: string, planned: PlannedAsset): string | null => {
+  // A prompt this dialect cannot yet clear of prohibitions is not a parity failure — it is an
+  // asset that may not be generated in this dialect AT ALL, which promptForProvider enforces at
+  // run time and the residual test below asserts separately.
+  try {
+    return promptForProvider(id, planned, compute)
+  } catch (err) {
+    if (err instanceof ResidualNegationError) return null
+    throw err
+  }
+}
+
+test('every provider in a dialect is given the same prompt for the same asset', () => {
   const recorded = referencePrompts()
   assert.ok(recorded.size > 0, 'the reference manifest carries no prompts to replay')
 
+  // Grouped by dialect rather than run over every provider at once. That is the ONE thing dialects
+  // changed about this property, and the group is derived from the registry so a third dialect is
+  // covered the day it is registered rather than the day somebody remembers to edit this test.
   let compared = 0
   for (const planned of plannedAssets()) {
     const { key } = identityFor(planned)
     if (!recorded.has(key)) continue // not generated for the reference yet; nothing to replay.
-    const prompts = PROVIDERS.map((p) => promptForProvider(p.id, planned, compute))
-    assert.equal(
-      new Set(prompts.map(digest)).size,
-      1,
-      `${key}: the providers would be sent different prompts`,
-    )
+    for (const dialect of dialectsInUse()) {
+      const prompts = inDialect(dialect)
+        .map((p) => sendable(p.id, planned))
+        .filter((p): p is string => p !== null)
+      if (prompts.length < 2) continue
+      assert.equal(
+        new Set(prompts.map(digest)).size,
+        1,
+        `${key}: the ${dialect}-dialect providers would be sent different prompts`,
+      )
+    }
     compared += 1
   }
   assert.ok(compared > 20, `only ${compared} assets had a recorded prompt to compare`)
+})
+
+/* ------------------------------------------------------------------ the dialect property */
+
+test('a dialect is a pure function of the record, so a cross-dialect set is re-derivable', () => {
+  // The claim that lets a second dialect exist without weakening anything. Within a dialect the
+  // check is equality (above); ACROSS dialects it is this — the prompt a set is sent is exactly
+  // what the named rules produce from the reference's own record, so the two sets are provably two
+  // phrasings of ONE brief about ONE asset. verify.py --parity runs the same check on the
+  // artefacts, from dialects.py, against the same dialects.json.
+  const recorded = referencePrompts()
+  let checked = 0
+  for (const planned of plannedAssets()) {
+    const record = recorded.get(identityFor(planned).key)
+    if (record === undefined) continue
+    for (const provider of PROVIDERS) {
+      if (provider.dialect === LITERAL.id) continue
+      const sent = sendable(provider.id, planned)
+      if (sent === null) continue
+      assert.equal(sent, applyDialect(provider.dialect, record), identityFor(planned).key)
+      checked += 1
+    }
+  }
+  assert.ok(checked > 0, 'no non-literal provider is registered, so this property is untested')
+})
+
+test('a dialect that is not the identity must actually differ, or its label is a lie', () => {
+  // A no-op transform registered as a dialect would be the worst outcome available: two sets that
+  // LOOK like a prompt-style experiment, are byte-identical in what they were asked, and produce a
+  // difference that is pure sampling noise dressed up as a finding.
+  const recorded = referencePrompts()
+  for (const dialect of DIALECTS) {
+    if (dialect.id === LITERAL.id) {
+      assert.equal(dialect.rules.length, 0, 'the literal dialect grew a rule; it IS the record')
+      for (const [, prompt] of recorded) assert.equal(applyDialect(dialect.id, prompt), prompt)
+      continue
+    }
+    assert.ok(
+      [...recorded.values()].some((p) => applyDialect(dialect.id, p) !== p),
+      `the ${dialect.id} dialect changes nothing on any recorded prompt here`,
+    )
+  }
+})
+
+test('a prompt that keeps its prohibitions cannot be sent in a dialect that forbids them', () => {
+  // "Positive" is a measured property of the string, not a claim in a registry. The gate is at
+  // generation time and it is a refusal to SPEND: a per-hour deployment makes "generate it and
+  // notice later" cost real money, and a set labelled positive whose prompts are half-negative
+  // would answer a question nobody asked while looking entirely correct on disk.
+  const positive = DIALECTS.find((d) => d.checkResiduals)
+  assert.ok(positive, 'no dialect checks its own residuals; the label is then unfalsifiable')
+  // Word boundaries: "generous negative space" is in every brief here and is not a prohibition.
+  assert.deepEqual(residualNegations(positive!.id, 'generous negative space, nonetheless'), [])
+  assert.deepEqual(residualNegations(positive!.id, 'no bevels'), ['no'])
+  // The literal dialect is the control and is SUPPOSED to be prohibition-heavy.
+  assert.deepEqual(residualNegations(LITERAL.id, 'no bevels, never inverted'), [])
+
+  const uncleared = plannedAssets().find((planned) => {
+    const record = referencePrompts().get(identityFor(planned).key)
+    return (
+      record !== undefined &&
+      residualNegations(positive!.id, applyDialect(positive!.id, record)).length > 0
+    )
+  })
+  if (uncleared) {
+    for (const provider of inDialect(positive!.id)) {
+      assert.throws(() => promptForProvider(provider.id, uncleared, compute), ResidualNegationError)
+    }
+  }
+})
+
+test('every registered provider declares a dialect that exists', () => {
+  for (const provider of PROVIDERS) {
+    assert.ok(provider.dialect, `${provider.id} declares no dialect`)
+    assert.equal(dialectById(provider.dialect).id, provider.dialect)
+  }
+  // The reference is the record, so it is the literal dialect by definition. If this ever flips,
+  // every other set's prompts derive from something that is itself a derivation.
+  assert.equal(REFERENCE.dialect, LITERAL.id)
+  assert.equal(LITERAL.source, null, 'the literal dialect derives from something; it IS the record')
+  for (const dialect of DIALECTS) {
+    if (dialect.id === LITERAL.id) continue
+    assert.equal(dialect.source, LITERAL.id, `${dialect.id} does not derive from the record`)
+  }
+})
+
+test('the two Qwen sets differ in exactly one field, and it is the dialect', () => {
+  // The controlled part of the second experiment. If they differed in the model, the deployment,
+  // the route or the concurrency, a difference in their output would have more than one available
+  // explanation and the exercise would prove nothing.
+  const literal = providerById('qwen-image-2512')
+  const positive = providerById('qwen-image-2512-positive')
+  const differs = (Object.keys(literal) as (keyof typeof literal)[]).filter(
+    (k) => JSON.stringify(literal[k]) !== JSON.stringify(positive[k]),
+  )
+  assert.deepEqual(differs.sort(), ['billing', 'dialect', 'id', 'label', 'notes', 'root'])
+  assert.equal(literal.dialect, LITERAL.id)
+  assert.equal(positive.dialect, 'positive')
+  assert.equal(literal.deployment, positive.deployment, 'same deployment, or it is not controlled')
+  assert.equal(literal.adapter, positive.adapter)
+  assert.equal(literal.route, positive.route)
+  assert.equal(literal.concurrency, positive.concurrency)
+  assert.deepEqual(literal.env, positive.env)
+  assert.equal(literal.billing.unit, positive.billing.unit)
+})
+
+test('--reprompt is refused outside the dialect that holds the record', () => {
+  // Unreachable while the reference is itself in the literal dialect, which it must be. It is here
+  // because the failure it prevents is silent and expensive: a reprompt in a DERIVED dialect writes
+  // a record nothing produced, after which verify.py --parity can no longer re-derive that set and
+  // the cross-dialect guarantee quietly stops being checkable while every file still looks correct.
+  const message = new RepromptNotForDialectError('some-provider', 'positive', 'types/ember@512x512')
+    .message
+  assert.ok(message.includes('positive'))
+  assert.ok(message.includes(LITERAL.id))
+  assert.ok(message.includes('re-derive'))
 })
 
 test('every provider replays the recorded prompt, including the reference', () => {
@@ -96,11 +249,20 @@ test('every provider replays the recorded prompt, including the reference', () =
   assert.ok(drifted.length > 0, 'no drifted asset to test against; give this a synthetic fixture')
   for (const planned of drifted) {
     for (const provider of PROVIDERS) {
+      // The record, TRANSLATED into that provider's dialect — which for a literal-dialect provider
+      // is the record itself, unchanged, and that is still the case being tested here. A dialect
+      // translates the record; it never lets a provider fall back to recomputing one.
+      const sent = sendable(provider.id, planned)
+      if (sent === null) continue
       assert.equal(
-        promptForProvider(provider.id, planned, compute),
-        recorded.get(identityFor(planned).key),
+        sent,
+        applyDialect(provider.dialect, recorded.get(identityFor(planned).key)!),
         `${identityFor(planned).key}: ${provider.id} was not given the recorded prompt`,
       )
+      if (provider.dialect === LITERAL.id) {
+        assert.equal(sent, recorded.get(identityFor(planned).key))
+        assert.notEqual(sent, promptFor(planned), 'it recomputed and happened to match')
+      }
     }
   }
 })
@@ -118,6 +280,7 @@ test('changing the question is deliberate and reference-only', () => {
     assert.throws(
       () => promptForProvider(candidate.id, drifted, compute, { reprompt: true }),
       RepromptNotForCandidateError,
+  RepromptNotForDialectError,
     )
   }
 })

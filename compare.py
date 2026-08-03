@@ -138,10 +138,17 @@ def contrast_retention(image: Image.Image, ground: tuple[int, int, int], size: i
 class SetReading:
     """Everything measured about one provider's set, before any of it is turned into a verdict."""
 
-    def __init__(self, provider: providers.Provider) -> None:
+    def __init__(self, provider: providers.Provider, keys: set[str] | None = None) -> None:
         self.provider = provider
         self.document = json.loads(provider.manifest.read_text())
         self.assets = self.document["assets"]
+        # --common: restrict every set to the assets ALL the selected sets hold. A pilot generates
+        # fifteen assets against a reference of ninety-four, and a spread computed over fifteen
+        # icons is not comparable with one computed over a whole brand system — the criterion-2
+        # numbers in particular are about a set's internal variety, so the sets have to be the same
+        # set of assets before they are the same measurement.
+        if keys is not None:
+            self.assets = [a for a in self.assets if providers.key_of(a) in keys]
         self.generated = [a for a in self.assets if not a.get("derivedFrom")]
 
         # criterion 1
@@ -410,7 +417,25 @@ def report(readings: list[SetReading]) -> None:
     ids = [r.provider.id for r in readings]
     print("\n" + "=" * (36 + 26 * len(ids)))
     row("", ids)
+    row("prompt dialect", [r.provider.dialect for r in readings])
     print("=" * (36 + 26 * len(ids)))
+
+    # The refusal. Two sets in different dialects were asked DIFFERENT QUESTIONS, deliberately and
+    # on the record, and the whole point of naming the dialect is that nobody can put them side by
+    # side without being told. This does not stop the comparison — the second question is worth
+    # answering — it stops the comparison being read as the first one.
+    spoken = sorted({r.provider.dialect for r in readings})
+    if len(spoken) > 1:
+        print(
+            f"\n   ** CROSS-DIALECT SELECTION: {', '.join(spoken)}. These columns were NOT asked the\n"
+            "   same question, and no row below is a controlled comparison between them. Each\n"
+            "   dialect is a named transform of the SAME recorded brief (dialects.json), and\n"
+            "   verify.py --parity re-derives every set from that record — so they are two\n"
+            "   phrasings of one brief and not two briefs. What a cross-dialect row answers is\n"
+            "   'which is better when each is prompted the way it wants', which is a different\n"
+            "   question from 'which is better on identical input'. For the second, select sets of\n"
+            "   one dialect: --provider takes as many as you like."
+        )
 
     print("\n1. PROMPT ADHERENCE  (measurable part; the idea itself is judged by eye)")
     row("assets", [str(len(r.assets)) for r in readings])
@@ -500,6 +525,11 @@ def main() -> int:
     parser.add_argument("--no-sheets", action="store_true", help="skip the side-by-side images")
     parser.add_argument("--kinds", nargs="*", default=["species", "types", "biomes", "ui", "title"],
                         help="which sets to build side-by-side sheets for")
+    parser.add_argument(
+        "--common",
+        action="store_true",
+        help="measure only the assets EVERY selected set holds — what a partial set needs",
+    )
     args = parser.parse_args()
 
     chosen = providers.selected(args)
@@ -507,9 +537,18 @@ def main() -> int:
         print("no provider has a manifest on disk")
         return 1
 
+    keys: set[str] | None = None
+    if args.common:
+        per_set = [
+            {providers.key_of(a) for a in json.loads(p.manifest.read_text())["assets"]}
+            for p in chosen
+        ]
+        keys = set.intersection(*per_set) if per_set else set()
+        print(f"--common: {len(keys)} asset(s) held by all {len(chosen)} selected set(s)")
+
     readings = []
     for provider in chosen:
-        reading = SetReading(provider)
+        reading = SetReading(provider, keys)
         reading.measure()
         readings.append(reading)
 

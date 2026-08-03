@@ -51,6 +51,7 @@ from pathlib import Path
 
 from PIL import Image
 
+import dialects
 import providers
 
 HERE = Path(__file__).resolve().parent
@@ -316,7 +317,7 @@ def read_image(image: Image.Image, accent: str, ground: tuple[int, int, int]) ->
 
 
 def check_parity(documents: dict[str, dict]) -> list[str]:
-    """Every asset present in two or more sets must carry the same prompt in both.
+    """The cross-set prompt check, in two halves — within a dialect, and across dialects.
 
     THE CHECK THE WHOLE COMPARISON RESTS ON. Two models asked different questions produce an
     incomparable answer, and the failure is invisible in the images — it looks like one model being
@@ -326,12 +327,33 @@ def check_parity(documents: dict[str, dict]) -> list[str]:
     It compares the MANIFESTS, not PLAN.json and not the prompt-building code, because the manifest
     is the only artefact that records what was actually SENT. PLAN.json is regenerated from the
     current clauses on every run and drifts away from the run it describes the moment a clause is
-    edited — measured here at the time of writing, most of this set's entries already carry a
-    manifest prompt its own PLAN.json no longer derives. Checking against the code would be
-    checking against a thing that has already moved.
+    edited. Checking against the code would be checking against a thing that has already moved.
 
-    Vacuously true while there is one set, and deliberately shipped before there is a second: it is
-    binding the first minute a candidate lands, which is the minute it matters.
+    Keyed on the manifest key rather than on the file path, so that a provider whose delivered
+    dimensions differ from FLUX's is still lined up with the right reference asset.
+
+    WITHIN A DIALECT: unchanged, and this is the property the controlled comparison rests on. Every
+    asset present in two or more sets of the same dialect must carry the byte-identical prompt in
+    all of them. A set that disagrees with its own dialect-mates is not comparable with them and
+    this says so.
+
+    ACROSS DIALECTS: RE-DERIVED, which is strictly stronger than the equality above rather than a
+    relaxation of it. A dialect is a pure function of the reference set's recorded prompt, so a
+    candidate in another dialect does not merely get to be different — its prompt must be EXACTLY
+    what applying its dialect's rules to the reference's record produces. Equality could only ever
+    say "these two strings differ". This says "this string is not what this dialect produces from
+    the record", which catches a hand-edited prompt, a rule added after a run, and a set whose
+    declared dialect is not the one it was actually generated in — none of which plain equality
+    could see, because none of them looks like agreement or disagreement.
+
+    The effect is that a set generated from a different prompt can never be silently compared with
+    one it does not match: either it is in the same dialect and must be identical, or it is in a
+    declared dialect and must be derivable. There is no third state.
+
+    Also reports an asset a candidate has that the reference does not. Every dialect derives from
+    the reference record, so a candidate can only ever be a subset of it whatever dialect it is in;
+    an extra key means something generated a prompt of its own, which is the failure this whole
+    check exists to catch.
     """
     if len(documents) < 2:
         return []
@@ -340,32 +362,71 @@ def check_parity(documents: dict[str, dict]) -> list[str]:
     for provider_id, document in documents.items():
         for asset in document["assets"]:
             # providers.key_of, not a hand-built string: the three asset repositories identify an
-            # asset differently and that function is the only place the difference lives.
+            # asset differently and this function is the only place that difference lives.
             by_key.setdefault(providers.key_of(asset), {})[provider_id] = asset["prompt"]
 
-    reference_id = providers.reference().id
+    reference = providers.reference()
+    dialect_of = {p.id: p.dialect for p in providers.load()}
     problems: list[str] = []
+
     for key, prompts in sorted(by_key.items()):
-        if len(prompts) < 2:
-            if reference_id in documents and reference_id not in prompts:
-                problems.append(
-                    f"{key}: present in {', '.join(sorted(prompts))} but not in the reference set "
-                    f"{reference_id} — a candidate replays the reference's recorded prompts, so it "
-                    "cannot hold an asset the reference has never generated"
-                )
-            continue
-        distinct: dict[str, list[str]] = {}
-        for provider_id, prompt in prompts.items():
-            distinct.setdefault(hashlib.sha256(prompt.encode()).hexdigest()[:12], []).append(provider_id)
-        if len(distinct) > 1:
-            groups = "; ".join(
-                f'{digest} = {", ".join(sorted(ids))}' for digest, ids in sorted(distinct.items())
-            )
+        if reference.id in documents and reference.id not in prompts:
             problems.append(
-                f"{key}: the sets were given DIFFERENT prompts ({groups}). The comparison between "
-                "them is not valid until they agree — regenerate the candidate, which replays the "
-                "reference's recorded prompt rather than computing one"
+                f"{key}: present in {', '.join(sorted(prompts))} but not in the reference set "
+                f"{reference.id} — every dialect derives from the reference's recorded prompt, so "
+                "no set can hold an asset the reference has never generated"
             )
+            continue
+
+        # ---- within a dialect: byte-identical, exactly as before
+        by_dialect: dict[str, dict[str, str]] = {}
+        for provider_id, prompt in prompts.items():
+            by_dialect.setdefault(dialect_of.get(provider_id, "?"), {})[provider_id] = prompt
+        for dialect, group in sorted(by_dialect.items()):
+            if len(group) < 2:
+                continue
+            distinct: dict[str, list[str]] = {}
+            for provider_id, prompt in group.items():
+                distinct.setdefault(
+                    hashlib.sha256(prompt.encode()).hexdigest()[:12], []
+                ).append(provider_id)
+            if len(distinct) > 1:
+                groups = "; ".join(
+                    f'{digest} = {", ".join(sorted(ids))}' for digest, ids in sorted(distinct.items())
+                )
+                problems.append(
+                    f"{key}: the {dialect}-dialect sets were given DIFFERENT prompts ({groups}). "
+                    "The comparison between them is not valid until they agree — regenerate the "
+                    "candidate, which replays the recorded prompt rather than computing one"
+                )
+
+        # ---- across dialects: re-derive from the record and compare bytes
+        record = prompts.get(reference.id)
+        if record is None:
+            continue
+        for provider_id, prompt in sorted(prompts.items()):
+            dialect = dialect_of.get(provider_id, "?")
+            if dialect == reference.dialect:
+                continue
+            expected = dialects.apply(dialect, record)
+            if prompt != expected:
+                problems.append(
+                    f"{key}: {provider_id} declares the {dialect!r} dialect, but its recorded "
+                    f"prompt is not what that dialect produces from the reference record "
+                    f"(recorded {hashlib.sha256(prompt.encode()).hexdigest()[:12]}, derived "
+                    f"{hashlib.sha256(expected.encode()).hexdigest()[:12]}). Either the set was "
+                    "generated in a different dialect from the one it claims, or dialects.json "
+                    "changed after the run — regenerate it, or the two sets are not two phrasings "
+                    "of one brief and nothing may be concluded by putting them side by side"
+                )
+                continue
+            owed = dialects.residuals(dialect, prompt)
+            if owed:
+                problems.append(
+                    f"{key}: {provider_id} is labelled {dialect!r} but its prompt still carries "
+                    f"{len(owed)} prohibition word(s) — {', '.join(owed)}. The label is a claim "
+                    "about the prompt and this one is not true of it"
+                )
     return problems
 
 
@@ -559,7 +620,17 @@ def main(argv: list[str]) -> int:
 
     parity = check_parity(documents)
     if len(documents) > 1:
+        spoken = {p.id: p.dialect for p in chosen if p.id in documents}
+        grouped = ", ".join(
+            f"{d}({', '.join(sorted(i for i, v in spoken.items() if v == d))})"
+            for d in sorted(set(spoken.values()))
+        )
         print(f"===== prompt parity across {len(documents)} sets: {len(parity)} disagreement(s)")
+        print(f"      dialects: {grouped}")
+        print(
+            "      identical WITHIN a dialect; RE-DERIVED from the reference record across them, "
+            "which is the stronger check of the two"
+        )
         for problem in parity:
             print(f"  -> {problem}")
     all_failures.extend(f"parity: {p}" for p in parity)
