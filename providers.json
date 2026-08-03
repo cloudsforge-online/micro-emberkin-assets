@@ -39,10 +39,78 @@
     "How an asset is identified in THIS repository's manifests. The one thing that genuinely",
     "differs between the estate's three asset repositories: micro-brand keys on surface + kind,",
     "and the two game sets key on a single dotted `asset` path such as species/aetherion.",
-    "Naming it here rather than in code is what lets providers.py, backends.ts, probe.ts and",
-    "compare.py be byte-identical copies across all three repositories instead of three subtly",
-    "different forks that drift."
+    "Naming it here rather than in code is what lets the registry loaders, the dialect seam and",
+    "verify.py's parity check be byte-identical copies across all three repositories instead of",
+    "subtly different forks that drift.",
+    "",
+    "IT DOES NOT MAKE THE WHOLE TOOLCHAIN IDENTICAL, AND THIS FILE USED TO CLAIM IT DID. The",
+    "claim named compare.py among the byte-identical copies. compare.py is identical in no two of",
+    "the three, and the difference is real logic rather than drift — see `shared` below, which",
+    "states file by file what is shared and what is not, and is CHECKED by claims.py rather than",
+    "believed. A file asserting a property about itself that does not hold is worse than a file",
+    "asserting nothing: the one-file-two-loaders arrangement exists so tooling cannot fork",
+    "silently, and a false claim of sameness defeats it more completely than no claim at all."
   ],
+  "$shared": [
+    "Which files in this repository are the SAME file as their counterpart in the sibling asset",
+    "repositories, which are deliberately not, and why. Every line of it is re-derived by",
+    "`python3 claims.py` from the bytes on disk, in both directions: a file listed as shared that",
+    "has forked fails, and a file listed as per-repository that has quietly converged fails too",
+    "and asks for it to be promoted. Neither direction can rot unnoticed.",
+    "",
+    "WHY compare.py IS PER-REPOSITORY, WHICH IS THE ONE THAT LOOKS LIKE AN ACCIDENT. It reads a",
+    "different measurement off the pixels because the sets are measuring different things. This",
+    "set is flat monochrome: one accent on one ash ground, so `read_accent` measures accent",
+    "coverage against a per-kind floor and a SECOND HUE IS A DEFECT. The game sets are painterly",
+    "and polychrome by specification, so `read_image` measures the same frame for `ink` — an asset",
+    "that came back essentially blank — and a second hue there is the brief being honoured. The",
+    "two cannot be one function without one of the sets being scored against the other's",
+    "specification. Converging them would be the defect, not the fix.",
+    "",
+    "verify.py is per-repository for the same reason and one more: its accent floors and its set",
+    "vocabulary are this set's. But `check_parity` inside it IS byte-identical across all three,",
+    "because prompt parity is an estate-wide property and must not be three subtly different",
+    "opinions about what parity means. claims.py extracts that function by name and compares it,",
+    "so the shared thing is pinned at the granularity it is actually shared at."
+  ],
+  "shared": {
+    "siblings": [
+      "brand",
+      "emberkin-assets",
+      "aetherholm-assets"
+    ],
+    "acrossAllThree": [
+      "providers.py",
+      "providers.ts",
+      "backends.ts",
+      "probe.ts",
+      "dialects.py",
+      "dialects.ts",
+      "dialects.json",
+      "materialise.py",
+      "claims.py"
+    ],
+    "betweenTheGameSetsOnly": [
+      "replay.ts"
+    ],
+    "identicalFunctions": [
+      {
+        "file": "verify.py",
+        "function": "check_parity",
+        "why": "prompt parity is estate-wide; the rest of verify.py is this set's own conformance"
+      }
+    ],
+    "perRepository": {
+      "compare.py": "micro-brand reads read_accent (flat, one accent, a second hue is a defect); the game sets read read_image (polychrome by specification, so blankness is the defect instead). micro-brand groups by `kind`, the game sets by `set`",
+      "verify.py": "each set's own accent floors and set vocabulary; only check_parity is shared",
+      "derive.py": "which derivatives exist at all differs per set",
+      "sheet.py": "contact-sheet layout follows the set's own kinds",
+      "plan.ts": "the plan IS the set",
+      "generate.ts": "sizing and surface registry differ per set",
+      "parity.test.ts": "asserts each set's own registry alongside the shared properties",
+      "normalise_ground.py": "the game sets copy ancillary chunks through and micro-brand does not, which is why C2PA survives a ground snap there and not here"
+    }
+  },
   "identity": {
     "key": [
       "asset",

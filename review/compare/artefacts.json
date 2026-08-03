@@ -29,5 +29,50 @@
     "ground not the flat ash field": 4,
     "idea not recognisable from plan.ts": 4,
     "recognisable pastiche of an existing artwork": 0
+  },
+  "$pilot": {
+    "$scope": "This repository's contribution to the estate-wide 15-asset positive-dialect pilot, micro-brand/COMPARISON.md section 9.3. These are the same 9 `types` icons the columns above score, restated under the row names that section's table uses, so the three repositories' contributions can be summed without a name-matching step. The other 6 are micro-brand's 2 currency marks and aetherholm's 4 `icons/resource-*`. claims.py sums the three $pilot blocks, checks each one against the columns it was taken from via $columnAlias, and checks the section 9.3 table against the sum.",
+    "$assets": [
+      "types/ember",
+      "types/frost",
+      "types/gale",
+      "types/lumen",
+      "types/spark",
+      "types/stone",
+      "types/tide",
+      "types/umbra",
+      "types/verdant"
+    ],
+    "$columnAlias": {
+      "framed / bordered / boxed": "frame / border / bounding box",
+      "non-flat (3D, bevel, gradient, glow)": "non-flat rendering (3D, bevel, gradient, glow, texture)",
+      "ground not the flat ash field": "ground not the flat ash field",
+      "idea not recognisable from the plan": "idea not recognisable from plan.ts",
+      "recognisable pastiche of an existing artwork": "recognisable pastiche of an existing artwork"
+    },
+    "$unscored": {
+      "construction guides drawn": "This reviewer did not score a guides row over the types sheet, so there is no figure here to sum and claims.py does not pin that row of the section 9.3 table. Recording the absence rather than a zero: several of these icons carry ruled lattices that a reviewer scoring the row might well have counted, and a fabricated 0 would be worse than an admitted gap."
+    },
+    "flux-2-pro": {
+      "framed / bordered / boxed": 0,
+      "non-flat (3D, bevel, gradient, glow)": 0,
+      "ground not the flat ash field": 0,
+      "idea not recognisable from the plan": 0,
+      "recognisable pastiche of an existing artwork": 0
+    },
+    "qwen-image-2512": {
+      "framed / bordered / boxed": 9,
+      "non-flat (3D, bevel, gradient, glow)": 9,
+      "ground not the flat ash field": 4,
+      "idea not recognisable from the plan": 1,
+      "recognisable pastiche of an existing artwork": 1
+    },
+    "qwen-image-2512-positive": {
+      "framed / bordered / boxed": 9,
+      "non-flat (3D, bevel, gradient, glow)": 9,
+      "ground not the flat ash field": 4,
+      "idea not recognisable from the plan": 4,
+      "recognisable pastiche of an existing artwork": 0
+    }
   }
 }
