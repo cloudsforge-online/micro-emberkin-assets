@@ -225,12 +225,20 @@ export const UNKNOWNS: readonly string[] = [
     'must be left EMPTY: the reference prompts carry their prohibitions inside the prompt text, ' +
     'and moving them into a different field would give this model a different instruction from the ' +
     'other two. That is a parity decision, not a quality one.',
-  'PROMPT LENGTH. The text encoder\'s token budget, and whether an over-long prompt is truncated ' +
-    'SILENTLY. These prompts run to roughly 2,000 characters. A model that truncates at 77 or 512 ' +
-    'tokens receives a different instruction from one that does not, and the comparison would read ' +
-    'that as a style failure rather than as a truncation. Probe with a prompt whose LAST clause is ' +
-    'checkable in the image — the ground clause is deliberately last — and look at whether it was ' +
-    'obeyed.',
+  'PROMPT LENGTH — ANSWERED, and the answer rules out the obvious explanation. Qwen does NOT ' +
+    'truncate. Probed with a 2,238-character prompt whose FINAL clause was "the entire background ' +
+    'is solid pure green, hex #00ff00, edge to edge": the image came back green. So the late ' +
+    'clauses of a 2,000-character brand prompt are received and acted on.\n\n    That matters ' +
+    'because it kills the comfortable theory about why this model draws construction guides into ' +
+    'artwork that explicitly forbids them. It is not that it never saw the prohibition. It is that ' +
+    'it obeys POSITIVE instructions late in a prompt ("make the background green") and disregards ' +
+    'NEGATIVE ones ("no grid, no guides, no construction lines") — and it reads the style ' +
+    'paragraph\'s "constructed ... on a single grid" as a thing to DRAW. That is the same misread ' +
+    'FLUX made on its first image, which prompts.ts fixed by moving the prohibition last; the fix ' +
+    'does not transfer, because position was never this model\'s problem.\n\n    The implication ' +
+    'for a FUTURE set is to state the constraint positively — "the background is one unbroken flat ' +
+    'field" rather than "no grid, no guides". It is deliberately NOT applied to this comparison: ' +
+    'changing a prompt for one model is the one thing parity forbids.',
   'CONCURRENCY. How many requests one A100_80GB serves before latency collapses. There is no ' +
     'shared quota to hit, so nothing will answer 429 to tell you; the signal is the median latency ' +
     'rising. This sets the run width and therefore the wall-clock, and the wall-clock IS the bill.',

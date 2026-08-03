@@ -5,7 +5,17 @@
 *.env
 
 # Review scaffolding. Contact sheets are built from the assets on demand and are not artefacts.
-review/
+#
+# Written as `review/*` rather than `review/`, and that detail is load-bearing: git will not
+# re-include a file inside an EXCLUDED DIRECTORY, so a `!review/compare/artefacts.json` under
+# `review/` silently does nothing. Excluding the contents instead leaves the directory itself
+# visible so the one exception below can take effect.
+review/*
+# The exception. The artefact tally is a HUMAN JUDGEMENT made by looking at the sheets, not
+# something a rebuild reproduces, and it is the evidence behind comparison criterion 4.
+!review/compare/
+review/compare/*
+!review/compare/artefacts.json
 
 # Python and editor debris.
 __pycache__/
