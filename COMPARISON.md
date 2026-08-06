@@ -119,7 +119,7 @@ This is already concrete. Cosmos 3 Super billed for its entire deployment lifeti
    comparison was briefed three-way, ran two-way because Cosmos 3 Super failed to deploy, and
    is one-way today because the owner withdrew Qwen-Image 2512. The registry, the backend
    interface, the dialect seam and the parity check are all kept: the estate has a stated 3D
-   and animation gap FLUX cannot fill (`docs/ecosystem/19-new-products.md:97`), so reinstating
+   and animation gap FLUX cannot fill (`docs/ecosystem/19-new-products.md`), so reinstating
    them for the next challenger would be a rewrite rather than an edit. What was deleted with
    the model is only what could not outlive it — its OpenAI-images envelope, and the
    transposed-`size` compensation written for that one endpoint's bug. The transposition
