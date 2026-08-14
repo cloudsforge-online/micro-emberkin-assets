@@ -1035,11 +1035,26 @@ async function main(): Promise<void> {
     })
     if (selection.limit !== null) work = work.slice(0, selection.limit)
 
-    process.stdout.write(`${work.length} asset(s) to generate\n`)
+    // The width is printed because it is the single most consequential thing about a run that
+    // nobody can see from its output. A serialised run and a fanned-out one produce identical
+    // `ok` lines, and the difference between them is whether the retries in the manifest are
+    // measurements of the model or of the queue in front of it.
+    process.stdout.write(
+      `${work.length} asset(s) to generate, ${selection.concurrency} at a time\n`,
+    )
 
-    // Three at a time, as the brand run settled on. FLUX takes twenty to forty seconds an image,
-    // so serial would be most of an hour for this set; more than a handful in flight is how a
-    // shared deployment starts answering 429 and the retry budget goes on capacity, not quality.
+    // FROM THE REGISTRY, PER PROVIDER — not a constant, and not a preference.
+    //
+    // FLUX takes twenty to forty seconds an image and its shared deployment tolerates three in
+    // flight, which is where the brand run settled: serial would be most of an hour for this set,
+    // and more than a handful at once is how a shared deployment starts answering 429 and the
+    // retry budget goes on capacity rather than on quality. That is a measurement of ONE endpoint.
+    //
+    // gpt-image-2 is registered at 1 and is run at 1. Its rate limit was measured before the run —
+    // a 429 naming a 32-second wait — and a fanned-out run against it would spend its budget being
+    // told to wait, then record those waits in `retries` where they would read as the model failing
+    // to answer the brief. `--concurrency` can override it for a deliberate experiment; nothing
+    // about a provider's default width is guessed from another provider's.
     const CONCURRENCY = selection.concurrency
     let cursor = 0
     let failures = 0
