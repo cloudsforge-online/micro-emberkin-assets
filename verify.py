@@ -38,18 +38,27 @@ Six checks:
 vision. See the note on it below: it is evidence, not a gate.
 
 
-** ONE CHECK IN HERE IS DORMANT, AND IT SAYS SO ON EVERY RUN. ** The owner withdrew Qwen-Image
-2512 and its candidate trees are deleted, so `check_parity` — the only check here that compares
-SETS rather than reading one manifest and its bytes — has a single operand and returns clean
-because it was handed one document. `main` prints DORMANT instead of a zero, and `--self-test`
-hands the real function two-set fixtures so it cannot quietly stop being able to fail. Every
-other check in this file is unaffected: they read the shipped manifest and the shipped pixels,
-and they would go red today exactly as they would have yesterday.
+** THE CHECK THAT WAS DORMANT IS LIVE AGAIN, AND THE RUN SAYS WHICH IT IS. ** When the owner
+withdrew Qwen-Image 2512 and its candidate trees were deleted, `check_parity` — the only check
+here that compares SETS rather than reading one manifest and its bytes — was left with a single
+operand and returned clean because it had been handed one document. It said DORMANT on every run
+for as long as that was true. `candidates/gpt-image-2` is a second manifest on disk, so a full run
+now compares two sets and prints the count of disagreements it actually found.
+
+The DORMANT wording has NOT been deleted, because dormancy is a property of the SELECTION and not
+of the estate: `verify.py --provider gpt-image-2` hands the function one document and is dormant
+this afternoon whatever is on disk. What changed is which branch a full run takes. `--self-test`
+still hands the real function two-set fixtures on every CI run, and still will after a candidate
+is promoted and the loser deleted, so this cannot quietly stop being able to fail again. Every
+other check in this file is unaffected either way: they read one manifest and its pixels, and they
+would go red today exactly as they would have yesterday.
 
     python3 verify.py --self-test    # break the cross-set guard on a fixture; no images needed
-    python3 verify.py                # everything
-    python3 verify.py species types  # only these sets
-    python3 verify.py --cvd          # the colour-vision separation table
+    python3 verify.py                          # every set present, every asset
+    python3 verify.py species types            # only these sets
+    python3 verify.py --provider flux-2-pro    # one set — parity DORMANT by selection
+    python3 verify.py --provider gpt-image-2   # the candidate alone
+    python3 verify.py --cvd                    # the colour-vision separation table
 """
 
 from __future__ import annotations
@@ -459,17 +468,24 @@ def check_parity(documents: dict[str, dict]) -> list[str]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
-# THE DORMANT CHECK, AND THE MACHINERY THAT PROVES IT CAN STILL BITE
+# THE CHECK THAT CAN GO DORMANT, AND THE MACHINERY THAT PROVES IT CAN STILL BITE
 #
 # `check_parity` above is the only check in this file that is ABOUT THE SET OF SETS. Every other
-# check reads one manifest and the bytes it points at, and goes on working exactly as before. This
-# one compares sets to each other, the owner withdrew the only challenger, and so it now has one
-# operand. Its failure count went to zero at a stroke with nothing about the shipped set changed.
+# check reads one manifest and the bytes it points at, and goes on working whatever else exists.
+# This one compares sets to each other, so when the owner withdrew the only challenger it was left
+# with one operand: its failure count went to zero at a stroke with nothing about the shipped set
+# changed.
 #
 # That is the precise shape of a number improving because a check stopped looking, and this estate
-# has been bitten by it repeatedly. The response here is two things, neither of which is a comment:
+# has been bitten by it repeatedly. The response was two things, neither of which is a comment:
 # `main` prints DORMANT rather than 0, and everything below hands the real function a real second
 # set and fails if it stays green.
+#
+# gpt-image-2 has since put a second manifest on disk, so a full run compares two real sets again.
+# NONE OF THIS MACHINERY IS BEING REMOVED ON THAT NEWS. It is what makes the live run's number
+# trustworthy, it is what will hold when a promotion deletes the loser and the count returns to
+# one, and it costs a fixture and no images to run. A guard deleted the day its subject arrives is
+# a guard that was never doing the work its author claimed.
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
 #: A recorded prompt that the positive dialect genuinely REWRITES, and whose rewrite comes out with
@@ -508,8 +524,10 @@ class _registry_with:
     to a check that could not see a second provider at all, and would prove nothing.
 
     So this appends to the REAL document rather than inventing one: `identity`, `reference` and
-    dialects.json are exactly what ships. What is synthetic is a second SET, which is precisely the
-    thing that no longer exists on disk and nothing else. The challengers are registered `live`,
+    dialects.json are exactly what ships. What is synthetic is a second SET, and nothing else —
+    which for a year was precisely the thing that did not exist on disk, and is why these fixtures
+    are built in memory rather than read from `candidates/`: they must go red in a checkout that
+    has one set, or none, or one that has just been promoted. The challengers are registered `live`,
     because a withdrawn provider with a manifest present would get the same verdict — this function
     compares the manifests it is GIVEN — and registering them live is the harder case to pass.
     """
