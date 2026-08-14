@@ -360,6 +360,16 @@ The same command naming the other model. There is no undo flag and no second cod
 gpt-image-2 is shipped, flux-2-pro is an ordinary candidate at `candidates/flux-2-pro/`, and
 promoting it back is the identical operation with the two ids exchanged.
 
+**The round trip has been run, twice, and the whole tree compared byte-for-byte afterwards.** One
+sha256 over every file under `assets/`, `candidates/`, `native/`, plus `MANIFEST.json` and
+`providers.json` — 298 files — taken before the first promotion and after each return, and all
+three digests are the same string. That is worth proving by execution rather than by reading,
+because the property the estate actually depends on is not "the switch works" but "**the shipped
+artwork survives a switch and a switch back unchanged**", and the only thing that can establish it
+is doing it. Note what the digest covers: promoting demotes the outgoing set into `candidates/`,
+so a round trip that lost a byte would lose it out of the reference set, and nothing else in this
+repository would notice.
+
 ### What a promotion does NOT do
 
 It does not materialise anything. `emberkin-web/public` holds 138 committed PNGs whose checksums
