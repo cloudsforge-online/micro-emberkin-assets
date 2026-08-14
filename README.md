@@ -301,6 +301,79 @@ checkouts beside it.** The *artefacts* are self-contained — the PNGs, `MANIFES
 `normalise_ground.py` and `verify.py --cvd` are pure standard library. `derive.py`, `sheet.py` and
 the rest of `verify.py` need Pillow. Nothing here has `node_modules` of its own.
 
+## 12. Two sets on disk, and how to switch between them
+
+There is more than one complete set of this artwork. `providers.json` is the registry: one entry
+per model, one of them named by the top-level `reference` field, and that one is the **shipped**
+set whose files live at `assets/`. A challenger lives at `candidates/<id>/` in exactly the same
+shape — `candidates/gpt-image-2/assets/title/mark-1024x1024.png` against
+`assets/title/mark-1024x1024.png` — because **every `path` in every manifest is relative to its own
+set's root and is the identical string in all of them.** That one property is what makes the switch
+a move rather than a rewrite, and it is why nothing below edits a manifest.
+
+```
+python3 promote.py --list                    # which set is shipped, which are on trial
+python3 materialise.py --list                # and how complete each one is
+```
+
+### Looking at both, without switching anything
+
+```
+python3 materialise.py --provider flux-2-pro  --into /tmp/flux
+python3 materialise.py --provider gpt-image-2 --into /tmp/gpt
+python3 sheet.py --provider gpt-image-2       # contact sheets into review/
+python3 compare.py                            # the two sets, measured side by side
+```
+
+`materialise.py` writes a `SET.json` receipt into the destination naming the model, so a directory
+of PNGs can always answer "whose artwork is this?" — the sets are deliberately the same shapes in
+the same colours, and by eye that question has no reliable answer. [COMPARISON.md](COMPARISON.md)
+is the written form of the same comparison.
+
+### Switching
+
+```
+python3 promote.py --provider gpt-image-2 --dry-run   # what would move; moves nothing
+python3 promote.py --provider gpt-image-2             # the switch
+```
+
+The winner's `assets/`, `MANIFEST.json` and `native/` move to the repository root and the OUTGOING
+set moves to `candidates/<its id>/` first, so the previous reference is **demoted, not deleted** —
+its bytes, its manifest and its provenance all survive, which is what keeps COMPARISON.md's numbers
+pointing at something real. `providers.json` is then edited in exactly three places: `reference`,
+and the two entries' `root` and `shipped`.
+
+Before anything moves, the candidate must be **complete** (every key the reference defines,
+resolved through `materialise.py` — a half-promoted set is a shipped set that is partly one model
+and partly another) and must pass `verify.py --provider <id> --as-shipped`, which holds a candidate
+to the *shipped* rules rather than the on-trial ones. After the move and before the registry is
+written, every checksum in **both** manifests is re-derived from the bytes at their new locations;
+if one disagrees the move is rolled back file by file and `providers.json` is never touched.
+
+### Switching back
+
+```
+python3 promote.py --provider flux-2-pro
+```
+
+The same command naming the other model. There is no undo flag and no second code path: once
+gpt-image-2 is shipped, flux-2-pro is an ordinary candidate at `candidates/flux-2-pro/`, and
+promoting it back is the identical operation with the two ids exchanged.
+
+### What a promotion does NOT do
+
+It does not materialise anything. `emberkin-web/public` holds 138 committed PNGs whose checksums
+match this manifest, and nothing in the estate reads this repository at run time — so after a
+switch, the consumers still hold the old bytes until they are updated deliberately:
+
+```
+python3 materialise.py --provider <id> --into ../emberkin-web/public/art
+python3 materialise.py --provider <id> --into ../emberkin-web/public --only title --flatten
+```
+
+The point of `promote.py` is not that those commands disappear. It is that the id in them stops
+being a decision anybody has to remember: it is whatever `providers.json` says is shipped.
+
 ---
 
 ## Provenance
