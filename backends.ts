@@ -577,11 +577,20 @@ export const OPENAI_IMAGES_QUALITY = 'high'
  * **Scaled, never padded and never cropped to a different shape.** A 1024x384 wordmark asked for at
  * 1024x640 would clear the budget with one fewer generation of thought and would compose the mark
  * for a frame two-thirds taller than the one it ships in; the model draws for the canvas it is
- * given. So the aspect ratio is preserved exactly and the factors are searched in order, which for
- * this set lands on the two sizes that were actually probed:
+ * given. So the aspect ratio is preserved exactly and the factors are searched in order. Every
+ * mapping this estate's four asset sets actually hit, all of them measured against the deployment
+ * rather than derived from a model card:
  *
- *     1024x384  →  x1.5  →  1536x576   (884,736 px, both /16, exactly 8:3)   MEASURED, exact
- *      512x512  →  x2    →  1024x1024  (1,048,576 px, both /16, exactly 1:1) MEASURED, exact
+ *     1024x384  →  x1.5  →  1536x576   (884,736 px, both /16, exactly 8:3)
+ *     1024x512  →  x1.5  →  1536x768   (1,179,648 px, both /16, exactly 2:1)
+ *      768x768  →  x1.5  →  1152x1152  (1,327,104 px, both /16, exactly 1:1)
+ *      512x512  →  x2    →  1024x1024  (1,048,576 px, both /16, exactly 1:1)
+ *      256x512  →  x2.5  →   640x1280  (819,200 px, both /16, exactly 1:2)
+ *      256x256  →  x3.5  →   896x896   (802,816 px, both /16, exactly 1:1)
+ *
+ * The 768x768 row is the one worth pausing on: 589,824 px sits INSIDE the unmeasured gap, so it is
+ * treated as refused and scaled. That is the conservative direction on purpose — see
+ * MIN_PIXEL_BUDGET — and it costs tokens where guessing the other way would cost a whole run.
  *
  * Halves are in the factor list before whole numbers because 1.5 is what makes the wordmark work
  * and produces an integer on both axes for every size this estate declares; a factor that did not
