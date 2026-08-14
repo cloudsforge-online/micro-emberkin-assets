@@ -586,11 +586,37 @@ function fileNameFor(planned: PlannedAsset, requested: { width: number; height: 
  * different responses: a malformed request is a bug in this file, and a refused one is a sentence
  * of the game's own flavour text that Azure will not draw. Only the second has a cheaper prompt
  * available to try.
+ *
+ * ## The second vendor's vocabulary, added after it cost a generation
+ *
+ * The three markers below were read off FLUX's refusals: `content_safety_violation`, `RAI policy`
+ * and `DallEBlockList_Prompt`. gpt-image-2 refuses in different words entirely —
+ * `"code": "moderation_blocked"`, `"type": "image_generation_user_error"` — so `species/joltmouse`
+ * was refused, matched none of them, and fell straight through to FAIL. The ladder above (repeat
+ * the prompt verbatim; only then drop the lore line) never ran, and a set that is 82 of 83 has to
+ * be finished by hand.
+ *
+ * That ladder is worth more here than it was for FLUX, not less, because of WHERE this refusal
+ * happened: `"moderation_stage": "output"`. Nothing about the request was rejected — the model
+ * drew something its own output filter then refused, which is by construction not reproducible
+ * from the prompt alone. It is the same non-determinism the FLUX finding below records, arriving
+ * through a different door, and the same first response is right: send the identical prompt again
+ * before giving anything up.
+ *
+ * Matched on the vendor's stable machine-readable codes rather than on prose. `moderation_blocked`
+ * is a documented error code; the sentence around it is marketing copy that can be reworded
+ * between deployments without any notice.
  */
 function isContentRefusal(err: unknown): boolean {
   if (!(err instanceof ImageBackendError) || err.code !== 'bad_request') return false
   const text = `${err.message} ${err.attempts.map((a) => a.detail).join(' ')}`.toLowerCase()
-  return text.includes('content_safety') || text.includes('rai policy') || text.includes('blocklist')
+  return (
+    text.includes('content_safety') ||
+    text.includes('rai policy') ||
+    text.includes('blocklist') ||
+    text.includes('moderation_blocked') ||
+    text.includes('image_generation_user_error')
+  )
 }
 
 /**
