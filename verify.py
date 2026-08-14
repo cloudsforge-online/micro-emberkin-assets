@@ -367,18 +367,21 @@ def check_parity(documents: dict[str, dict]) -> list[str]:
     an extra key means something generated a prompt of its own, which is the failure this whole
     check exists to catch.
 
-    ** IT IS DORMANT TODAY, WHICH IS WHY THE EARLY RETURN BELOW IS NARROW AND SAYS SO. ** The owner
-    withdrew Qwen-Image 2512 and both its candidate trees have been deleted, so there is one
-    manifest on disk and this function has nothing to compare it against. It returns clean because
-    it was handed ONE DOCUMENT, not because it looked and found nothing — and an exit code cannot
-    tell those two apart. That is this estate's recurring defect, found five times in a day: a CI
-    job that read image metadata without decoding the image, a grep that skipped files containing
-    NUL bytes, a secret scan whose `-I` discarded the binary stream it was meant to search.
+    ** THE EARLY RETURN BELOW IS NARROW ON PURPOSE, AND THE CALLER SAYS SO OUT LOUD. ** For the
+    year between Qwen-Image 2512 being withdrawn and gpt-image-2 arriving, every repository here
+    held exactly one manifest and this function had nothing to compare it against. It returned
+    clean because it had been handed ONE DOCUMENT, not because it looked and found nothing — and an
+    exit code cannot tell those two apart. That is this estate's recurring defect, found five times
+    in a day: a CI job that read image metadata without decoding the image, a grep that skipped
+    files containing NUL bytes, a secret scan whose `-I` discarded the binary stream it was meant
+    to search.
 
-    So the guard below is spelled "fewer than two sets" and never "no problems"; `main` prints the
-    word DORMANT instead of a reassuring zero; and `python3 verify.py --self-test` runs this exact
-    function against two-set fixtures on every CI run. A SECOND SET WHOSE PROMPT DIFFERS BY ONE
-    WORD MUST STILL FAIL, and that sentence is executable rather than a claim.
+    That state can always come back — a promotion deletes the loser, and `--provider X` narrows a
+    live run to one document on any afternoon — so the guard below is spelled "fewer than two sets"
+    and never "no problems"; `main` prints the word DORMANT instead of a reassuring zero whenever
+    it fires; and `python3 verify.py --self-test` runs this exact function against two-set fixtures
+    on every CI run regardless of what is on disk. A SECOND SET WHOSE PROMPT DIFFERS BY ONE WORD
+    MUST STILL FAIL, and that sentence is executable rather than a claim.
     """
     if len(documents) < 2:
         return []
