@@ -146,6 +146,54 @@
       "derive": "estate.generated"
     },
     {
+      "document": "COMPARISON.md",
+      "find": "on the same (\\d+) assets",
+      "derive": "repo.generated",
+      "why": "the gpt-image-2 section's heading; the challenger replays the reference's generated entries and nothing else, so this figure and repo.generated are the same number by construction"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "candidate set holds the same (\\d+) entries",
+      "derive": "candidate.assets(emberkin-assets|gpt-image-2)",
+      "why": "read out of candidates/gpt-image-2/MANIFEST.json, not out of this repository's; a candidate claiming completeness it does not have is the defect promote.py's gate exists for"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "entries as the reference: (\\d+) generated",
+      "derive": "repo.generated"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "generated, and the same (\\d+)\\nderivatives",
+      "derive": "repo.derived"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "\\| entries in the set \\| (\\d+) \\| \\d+ \\|",
+      "derive": "repo.assets"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "\\| generated, the rest derived \\| (\\d+) \\|",
+      "derive": "repo.generated"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "\\| assets needing at least one retry \\| (\\d+) / \\d+ \\|",
+      "derive": "repo.retried",
+      "why": "the same figure the baseline table states as `24 of 83`; stated twice in two notations, so it is pinned twice"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "\\| total retries \\| (\\d+) \\| \\*\\*",
+      "derive": "repo.retries"
+    },
+    {
+      "document": "COMPARISON.md",
+      "find": "C2PA on the file at `assets/`, measured off the bytes \\| \\*\\*(\\d+) / \\d+\\*\\*",
+      "derive": "repo.c2pa"
+    },
+    {
       "document": "materialise.py",
       "find": "([\\d,]+) entries across the three repositories",
       "derive": "estate.assets"

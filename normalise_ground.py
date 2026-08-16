@@ -47,8 +47,31 @@ import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# Resolved per provider at run time; see main(). Kept as a name so nothing below
-# reaches for a hardcoded path.
+
+# ═══ THE PER-PROVIDER PATHS, WHICH THIS FILE ALREADY CLAIMED IT HAD ═══════════════════════════
+#
+# These two lines used to read `MANIFEST = HERE / "MANIFEST.json"` under a comment saying
+# "Resolved per provider at run time; see main()". `main()` did no such thing: it read the
+# repository's own manifest and joined every path onto `HERE`, so there was exactly one set it
+# could ever touch. The comment was written when the registry landed, in anticipation of a
+# candidate that had not been generated yet, and it was never made true.
+#
+# It matters more than a stale comment usually does, because of what the step IS. This snap is the
+# reason `verify.py`'s flat-ground check passes at all — FLUX delivers #232324 to #3f3a3b against a
+# target of #12100f, and the check demands the exact hex. A candidate that cannot be normalised
+# therefore cannot pass a check the shipped set passes, and NOT because of anything the model did:
+# the two sets would differ by which tools had been run over them. The comparison in COMPARISON.md
+# would be measuring this repository's post-processing and reporting it as art.
+#
+# And it is not only a measurement problem. `promote.py` moves a candidate tree to `assets/` and
+# flips `shipped`, at which point the flat-ground check becomes FATAL. A set that has never been
+# normalised turns the repository red the moment it is promoted, which is precisely the defect the
+# `--as-shipped` gate exists to catch and would have caught here, loudly and after the fact.
+#
+# So `--provider` is real now, and the paths below are resolved from providers.json rather than
+# assumed. `_job` joins onto ROOT rather than HERE, so a candidate's files are found under
+# candidates/<id>/assets/ where they actually are.
+ROOT = HERE
 MANIFEST = HERE / "MANIFEST.json"
 
 TARGET = (0x12, 0x10, 0x0F)
@@ -224,8 +247,14 @@ def normalise(path: Path, dry_run: bool = False):
 
 
 def _job(args):
-    relative, dry_run = args
-    path = HERE / relative
+    # The root is PASSED rather than read off the module global, and that is not tidiness. This
+    # pool is `multiprocessing.Pool`, whose start method on macOS is `spawn`: each worker imports
+    # this module fresh, so `ROOT` in a worker is whatever the module-level assignment says and
+    # never what `main()` set it to. A candidate's files would be looked for under the repository
+    # root, every one would be missing, and the failure would be a FileNotFoundError from inside a
+    # worker rather than anything that names a provider.
+    relative, dry_run, root = args
+    path = Path(root) / relative
     try:
         return relative, normalise(path, dry_run), None
     except Unsupported as err:  # a fact about the file, not a crash
@@ -235,8 +264,22 @@ def _job(args):
 def main(argv: list[str]) -> int:
     force = "--force" in argv
     dry_run = "--dry-run" in argv
+
+    global ROOT, MANIFEST
+    if "--provider" in argv:
+        # Deliberately hand-parsed rather than argparse'd. This file is pure standard library on
+        # purpose — no Pillow, so it runs in CI — and it already reads its two flags by membership;
+        # one more flag is not worth the import, and providers.py is the only new dependency, which
+        # is itself stdlib.
+        import providers
+
+        wanted = argv[argv.index("--provider") + 1]
+        provider = providers.by_id(wanted)
+        ROOT, MANIFEST = provider.root, provider.manifest
+        print(f"provider {provider.id} ({provider.label}) — manifest at {MANIFEST.name}")
+
     if not MANIFEST.exists():
-        print("MANIFEST.json does not exist; generate first", file=sys.stderr)
+        print(f"{MANIFEST} does not exist; generate first", file=sys.stderr)
         return 1
     document = json.loads(MANIFEST.read_text())
     assets = document["assets"]
@@ -256,7 +299,7 @@ def main(argv: list[str]) -> int:
 
     print(f"{len(targets)} flat-ground asset(s) to normalise")
     with multiprocessing.Pool() as pool:
-        results = pool.map(_job, [(a["path"], dry_run) for a in targets])
+        results = pool.map(_job, [(a["path"], dry_run, str(ROOT)) for a in targets])
 
     by_path = {a["path"]: a for a in assets}
     grounds: list[tuple[str, tuple[int, int, int]]] = []
