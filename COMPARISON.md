@@ -748,3 +748,55 @@ prompts were in several cases edited after it was generated — so the challenge
 recorded string and in places beat a slightly easier opponent. The measurements are reproducible on
 demand and the by-eye scoring is not. Where the two disagree, the tables are what can be checked and
 the prose is what has to be argued with.
+
+## Addendum: the experiment this document proposed could not be run, so the control was run instead
+
+The section above ends by naming what would change the verdict — a regeneration of the losing
+categories with the brief pushed towards **filled shapes** rather than the outline register
+gpt-image-2 chose. That was attempted on 2026-08-16. **It is not possible in this repository**, and
+the reason is worth recording because it is a property of the tooling rather than of the models.
+
+`reprompt` — the field that would carry a changed instruction — is **reference-only**. A candidate
+set replays the prompt string recorded in its own manifest; there is no supported path that hands a
+candidate provider a new brief without first making it the reference, which is the promotion this
+document recommends against. So the only thing that *could* be run was a plain re-roll: same literal
+prompt, same setting, new draws.
+
+That is the control for the proposed experiment, and it is worth having, because it separates two
+explanations for the outline register that the section above could not distinguish: *the model
+answered this brief that way* versus *the model draws that way when asked this*. The control answers
+it.
+
+**Fifteen assets were re-rolled** — the six `biomes` plates and all nine `types` marks, i.e. the
+whole of both categories the verdict turned on. The result:
+
+| | flux-2-pro | gpt-image-2 before | gpt-image-2 after |
+| --- | ---: | ---: | ---: |
+| marks under 50% at 16px | 9 | 12 | **13** |
+
+**It moved nothing, and moved the headline row the wrong way.** New draws, same register: dark-red
+outline strokes on near-black where the reference fills. The register is not a bad roll to be rolled
+past; it is what this model does with this brief at this setting, and one re-roll per asset does not
+reach it.
+
+`title/mark` is the sharpest case and it was pushed hardest — **four draws**, because it is the one
+asset a re-roll would most obviously be worth. Every draw after the first *failed the flat-ground
+conformance check*, with corner ink at **17.1%**, **8.0%** and **13.5%** where the check requires the
+four corner patches to be exactly `#12100f`. Draw 1 was restored — bytes and its `MANIFEST.json` row,
+keyed by `(set, slug, declaredSize)` — and the set re-derived. `verify.py --provider gpt-image-2
+--as-shipped` is back to **0 failures**.
+
+Three things follow, and only the first is about this repository.
+
+1. **The verdict stands: do not promote.** It is unchanged, for the reasons already given, now with
+   the re-roll defence closed rather than left open.
+2. **The candidate remains switchable and is committed.** Nothing here removes the option; the set
+   passes its own gate as shipped, and `promote.py --provider gpt-image-2` still carries it out in
+   one command, reversibly.
+3. **The same model won the sibling brand repository on this exact criterion** — 7 marks under 50%
+   at 16px against the reference's 11, promoted the same day. Same model, same setting, same literal
+   dialect, opposite result. What separates them is the brief: `micro-brand`'s surfaces ask for solid
+   emblems, and `emberkin`'s ask for creatures and terrain, where this model reaches for line work.
+   **That is a fact about our prompts, not about the model**, and it is the most actionable thing
+   this control produced — the filled-shape experiment is still the right one to run, and running it
+   needs a `reprompt` path for candidates, which does not exist today.
